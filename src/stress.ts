@@ -127,3 +127,24 @@ for (let i = 1; i <= N; i++) {
 
 Object.values(stores).forEach(s => s.save());
 console.log("DONE");
+
+// --- Enhanced anomaly reporting: write summary CSVs for each anomaly type ---
+function writeAnomalySummary(store, outFile) {
+  if (!store.items || store.items.length === 0) return;
+  const keys = Object.keys(store.items[0].report.anomaly || {});
+  const header = ["rank", "score", "runIndex", "seed", ...keys];
+  const rows = store.items.map((item, i) => {
+    const anomalyVals = keys.map(k => JSON.stringify(item.report.anomaly[k]));
+    return [i+1, item.score, item.report.runIndex, item.report.seed, ...anomalyVals].join(",");
+  });
+  const csv = header.join(",") + "\n" + rows.join("\n");
+  fs.writeFileSync(outFile, csv);
+}
+
+writeAnomalySummary(stores.randomness, "anomalies/randomness_top.csv");
+writeAnomalySummary(stores.structure, "anomalies/structure_top.csv");
+writeAnomalySummary(stores.reemergence, "anomalies/reemergence_top.csv");
+writeAnomalySummary(stores.tfast, "anomalies/tstruct_fastest.csv");
+writeAnomalySummary(stores.tslow, "anomalies/tstruct_slowest.csv");
+
+console.log("Anomaly summaries written to anomalies/*.csv");

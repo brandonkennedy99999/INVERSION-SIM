@@ -2,10 +2,9 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import {
-  SquareInversionReflect,
-  computeInversionStepFromStart,
-} from "./variants/square_inversion_reflect.js";
+import { SquareInversionReflect, computeInversionStepFromStart } from "./variants/square_inversion_reflect.js";
+import { SquareClampReflect } from "./variants/square_clamp_reflect.js";
+import { SquareStickyReflect } from "./variants/square_sticky_reflect.js";
 
 import { runVariant, writeOutputs } from "./run.js";
 import type { RunConfig } from "./types.js";
@@ -125,38 +124,79 @@ function triggerReemergenceEvent(cell: string, step: number) {
   console.log(`Re-emergence triggered at cell ${cell} during step ${step}`);
 }
 
-// ✅ multi inversion schedule (DO NOT set cfg.inversionStep)
+// --- CLI argument parsing ---
+const argv = process.argv.slice(2);
+if (argv.includes("--help") || argv.includes("-h")) {
+  console.log(`Usage: npx tsx src/main.ts [options]\n\nOptions:\n  --steps N         Number of steps (default: 200003)\n  --sizeX N         Grid width (default: 5)\n  --sizeY N         Grid height (default: 7)\n  --variant NAME    Variant: inversion, clamp, sticky (default: inversion)\n`);
+  process.exit(0);
+}
+
+function getArg(flag, def) {
+  const idx = argv.indexOf(flag);
+  if (idx !== -1 && argv[idx + 1]) return argv[idx + 1];
+  return def;
+}
+
+function parseNumber(val, name, min = 1) {
+  const n = Number(val);
+  if (!Number.isFinite(n) || n < min) {
+    throw new Error(`Invalid value for ${name}: ${val}`);
+  }
+  return n;
+}
+
+let steps, sizeX, sizeY;
+try {
+  steps = parseNumber(getArg("--steps", 200003), "steps");
+  sizeX = parseNumber(getArg("--sizeX", 5), "sizeX");
+  sizeY = parseNumber(getArg("--sizeY", 7), "sizeY");
+} catch (err) {
+  console.error("Argument error:", err.message);
+  process.exit(1);
+}
+
+const variantName = getArg("--variant", "inversion");
+let variant;
+if (variantName === "clamp") variant = SquareClampReflect;
+else if (variantName === "sticky") variant = SquareStickyReflect;
+else if (variantName === "inversion") variant = SquareInversionReflect;
+else {
+  console.error(`Unknown variant: ${variantName}`);
+  process.exit(1);
+}
+
 const cfg: RunConfig = {
-  sizeX: 5,
-  sizeY: 7,
+  sizeX,
+  sizeY,
   x0: 1,
   y0: 1,
   vx0: 1,
   vy0: 1,
   phase0: 0,
-  steps: 200003,
+  steps,
   multiplier: 7,
   mod: 1000003,
 };
 
-cfg.inversionSchedule = [
-  { step: Math.floor(cfg.steps * 0.20), kind: "GEOM" },
-  { step: Math.floor(cfg.steps * 0.40), kind: "SPHERE" },
-  { step: Math.floor(cfg.steps * 0.60), kind: "OBSERVER" },
-  { step: Math.floor(cfg.steps * 0.80), kind: "CAUSAL" },
-];
-
-console.log("Schedule:", cfg.inversionSchedule);
+if (variant === SquareInversionReflect) {
+  cfg.inversionSchedule = [
+    { step: Math.floor(cfg.steps * 0.20), kind: "GEOM" },
+    { step: Math.floor(cfg.steps * 0.40), kind: "SPHERE" },
+    { step: Math.floor(cfg.steps * 0.60), kind: "OBSERVER" },
+    { step: Math.floor(cfg.steps * 0.80), kind: "CAUSAL" },
+  ];
+  console.log("Schedule:", cfg.inversionSchedule);
+}
 
 // ---------- main ----------
 function main() {
   const { runDir, runName } = allocateRunDir();
 
-  console.log("Variant:", SquareInversionReflect.name);
+  console.log("Variant:", variant.name);
   console.log("Steps:", cfg.steps);
-  console.log("InversionStep:", cfg.inversionStep);
+  if (cfg.inversionStep) console.log("InversionStep:", cfg.inversionStep);
 
-  const result = runVariant(SquareInversionReflect, cfg);
+  const result = runVariant(variant, cfg);
   writeOutputs(runDir, runName, result, cfg);
 
   console.log("Simulation run complete");
