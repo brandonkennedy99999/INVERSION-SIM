@@ -1,6 +1,9 @@
 // src/browser.ts
 import { TopologyRenderer } from './visualization/TopologyRenderer.js';
 import { MirrorInversion } from './variants/mirror_inversion.js';
+import { SquareClampReflect } from './variants/square_clamp_reflect.js';
+import { SquareInversionReflect } from './variants/square_inversion_reflect.js';
+import { SquareStickyReflect } from './variants/square_sticky_reflect.js';
 import { runVariant } from './core.js';
 import type { RunConfig } from './types.js';
 import * as THREE from 'three';
@@ -9,12 +12,14 @@ let currentRenderer: TopologyRenderer | ThreeDRenderer | AbstractRenderer | null
 let topologyRenderer: TopologyRenderer | null = null;
 let currentResult: any = null;
 let currentCfg: RunConfig;
+let currentVariant = MirrorInversion;
 
 class ThreeDRenderer {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
   private container: HTMLElement;
+  private zoomLevel: number = 1;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -69,12 +74,19 @@ class ThreeDRenderer {
 
     this.renderer.render(this.scene, this.camera);
   }
+
+  zoom(factor: number) {
+    this.zoomLevel *= factor;
+    this.camera.position.z *= factor;
+    this.render(currentResult, currentCfg);
+  }
 }
 
 class AbstractRenderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private container: HTMLElement;
+  private zoomLevel: number = 1;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -116,9 +128,15 @@ class AbstractRenderer {
       this.ctx.fill();
     }
   }
+
+  zoom(factor: number) {
+    this.zoomLevel *= factor;
+    this.render(currentResult, currentCfg);
+  }
 }
 
 function getConfigFromUI(): RunConfig {
+  const reducedPrimeGrowth = (document.getElementById('reducedPrimeGrowth') as HTMLInputElement).checked;
   return {
     sizeX: parseInt((document.getElementById('sizeX') as HTMLInputElement).value),
     sizeY: parseInt((document.getElementById('sizeY') as HTMLInputElement).value),
@@ -128,7 +146,7 @@ function getConfigFromUI(): RunConfig {
     vy0: parseInt((document.getElementById('vy0') as HTMLInputElement).value),
     phase0: 0,
     steps: parseInt((document.getElementById('steps') as HTMLInputElement).value),
-    multiplier: 7,
+    multiplier: reducedPrimeGrowth ? 3 : 7,
     mod: 1000003,
     inversionSchedule: [
       { step: Math.floor(parseInt((document.getElementById('steps') as HTMLInputElement).value) * 0.20), kind: "GEOM" },
@@ -143,7 +161,7 @@ function runSimulation() {
   console.log("Running simulation in browser...");
 
   currentCfg = getConfigFromUI();
-  currentResult = runVariant(MirrorInversion, currentCfg);
+  currentResult = runVariant(currentVariant, currentCfg);
 
   console.log("Simulation complete");
   console.log(`Events: ${currentResult.events.length}`);
@@ -195,6 +213,16 @@ function switchToMode(mode: string) {
   }
 }
 
+function zoom(factor: number) {
+  if (currentRenderer instanceof TopologyRenderer) {
+    currentRenderer.zoom(factor);
+  } else if (currentRenderer instanceof ThreeDRenderer) {
+    currentRenderer.zoom(factor);
+  } else if (currentRenderer instanceof AbstractRenderer) {
+    currentRenderer.zoom(factor);
+  }
+}
+
 // Event listeners
 window.addEventListener('load', () => {
   const runSimBtn = document.getElementById('runSim');
@@ -204,6 +232,12 @@ window.addEventListener('load', () => {
   const toroidalBtn = document.getElementById('toroidal');
   const hyperbolicBtn = document.getElementById('hyperbolic');
   const phaseSpaceBtn = document.getElementById('phaseSpace');
+  const variantMirrorBtn = document.getElementById('variantMirror');
+  const variantSquareClampBtn = document.getElementById('variantSquareClamp');
+  const variantSquareInversionBtn = document.getElementById('variantSquareInversion');
+  const variantSquareStickyBtn = document.getElementById('variantSquareSticky');
+  const zoomInBtn = document.getElementById('zoomIn');
+  const zoomOutBtn = document.getElementById('zoomOut');
 
   if (runSimBtn) runSimBtn.addEventListener('click', runSimulation);
   if (mode2DBtn) mode2DBtn.addEventListener('click', () => switchToMode('2D'));
@@ -212,6 +246,12 @@ window.addEventListener('load', () => {
   if (toroidalBtn) toroidalBtn.addEventListener('click', () => switchToMode('Toroidal'));
   if (hyperbolicBtn) hyperbolicBtn.addEventListener('click', () => switchToMode('Hyperbolic'));
   if (phaseSpaceBtn) phaseSpaceBtn.addEventListener('click', () => switchToMode('PhaseSpace'));
+  if (variantMirrorBtn) variantMirrorBtn.addEventListener('click', () => { currentVariant = MirrorInversion; runSimulation(); });
+  if (variantSquareClampBtn) variantSquareClampBtn.addEventListener('click', () => { currentVariant = SquareClampReflect; runSimulation(); });
+  if (variantSquareInversionBtn) variantSquareInversionBtn.addEventListener('click', () => { currentVariant = SquareInversionReflect; runSimulation(); });
+  if (variantSquareStickyBtn) variantSquareStickyBtn.addEventListener('click', () => { currentVariant = SquareStickyReflect; runSimulation(); });
+  if (zoomInBtn) zoomInBtn.addEventListener('click', () => zoom(1.2));
+  if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => zoom(0.8));
 
   // Initial run
   runSimulation();

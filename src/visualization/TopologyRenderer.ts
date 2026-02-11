@@ -11,6 +11,7 @@ export class TopologyRenderer {
   private width: number;
   private height: number;
   private cellSize: number = 20; // pixels per cell
+  private zoomLevel: number = 1;
 
   constructor(container: HTMLElement, width: number = 800, height: number = 600) {
     this.canvas = document.createElement('canvas');
@@ -61,24 +62,37 @@ export class TopologyRenderer {
     }
   }
 
-  // Render the trajectory as a path
+  // Render the trajectory as a path with multi-color segments
   public renderTrajectory(trajectory: State[]) {
     if (trajectory.length < 2) return;
 
     const first = trajectory[0];
     if (!first) return;
 
-    this.ctx.strokeStyle = 'red';
-    this.ctx.lineWidth = 2;
-    this.ctx.beginPath();
-    this.ctx.moveTo(first.x * this.cellSize + this.cellSize / 2, first.y * this.cellSize + this.cellSize / 2);
-    for (let i = 1; i < trajectory.length; i++) {
-      const state = trajectory[i];
-      if (state) {
-        this.ctx.lineTo(state.x * this.cellSize + this.cellSize / 2, state.y * this.cellSize + this.cellSize / 2);
+    const segmentLength = Math.floor(trajectory.length / 4); // Divide into 4 segments
+    const colors = ['red', 'blue', 'green', 'purple'];
+
+    for (let segment = 0; segment < 4; segment++) {
+      const startIdx = segment * segmentLength;
+      const endIdx = segment === 3 ? trajectory.length : (segment + 1) * segmentLength;
+
+      this.ctx.strokeStyle = colors[segment]!;
+      this.ctx.lineWidth = 2;
+      this.ctx.beginPath();
+
+      const startState = trajectory[startIdx];
+      if (startState) {
+        this.ctx.moveTo(startState.x * this.cellSize * this.zoomLevel + this.cellSize * this.zoomLevel / 2, startState.y * this.cellSize * this.zoomLevel + this.cellSize * this.zoomLevel / 2);
       }
+
+      for (let i = startIdx + 1; i < endIdx; i++) {
+        const state = trajectory[i];
+        if (state) {
+          this.ctx.lineTo(state.x * this.cellSize * this.zoomLevel + this.cellSize * this.zoomLevel / 2, state.y * this.cellSize * this.zoomLevel + this.cellSize * this.zoomLevel / 2);
+        }
+      }
+      this.ctx.stroke();
     }
-    this.ctx.stroke();
   }
 
   // Render events as markers
@@ -155,18 +169,25 @@ export class TopologyRenderer {
       const prev = trajectory[i - 1];
       const curr = trajectory[i];
 
-      const x1 = (prev.x / 10) * this.width; // Assume max 10
-      const y1 = (prev.vx / 10) * this.height;
-      const x2 = (curr.x / 10) * this.width;
-      const y2 = (curr.vx / 10) * this.height;
+      if (prev && curr) {
+        const x1 = (prev.x / 10) * this.width; // Assume max 10
+        const y1 = (prev.vx / 10) * this.height;
+        const x2 = (curr.x / 10) * this.width;
+        const y2 = (curr.vx / 10) * this.height;
 
-      this.ctx.strokeStyle = `hsl(${curr.phase * 360}, 100%, 50%)`;
-      this.ctx.lineWidth = 1;
-      this.ctx.beginPath();
-      this.ctx.moveTo(x1, y1);
-      this.ctx.lineTo(x2, y2);
-      this.ctx.stroke();
+        this.ctx.strokeStyle = `hsl(${curr.phase * 360}, 100%, 50%)`;
+        this.ctx.lineWidth = 1;
+        this.ctx.beginPath();
+        this.ctx.moveTo(x1, y1);
+        this.ctx.lineTo(x2, y2);
+        this.ctx.stroke();
+      }
     }
+  }
+
+  public zoom(factor: number) {
+    this.zoomLevel *= factor;
+    // Re-render the current view if needed, but since we don't have current result here, just update zoom
   }
 }
 

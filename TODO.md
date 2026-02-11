@@ -1,15 +1,12 @@
-# TODO: Enhance Inversion Simulation and Visualization
+# TODO: Implement Inversion Toggles, Zoom, Multi-Color Trajectory, and Desktop Shortcut
 
-## Steps to Complete
-- [x] Complete TopologyRenderer class in src/main.ts with methods to render grid, trajectory, and anomalies (e.g., drawGrid, drawTrajectory, renderAnomalies).
-- [x] Integrate TopologyRenderer in main.ts to display simulation results visually after running the simulation.
-- [x] Test the visualization by running `npx tsx src/main.ts` and verify output.
-- [x] Debug any issues with simulation behavior or rendering (e.g., if inversion/anomalies not working as expected).
-- [x] Commit changes with a proper message (e.g., "Complete TopologyRenderer and integrate visualization in main.ts").
-- [x] Separate inversion events and logically represent them: Enhance event logging for inversions, perhaps add distinct event types for each inversion kind.
-- [x] Make sim invert on itself from beginning point perspective: Modify inversion logic to reflect trajectory back to start point.
-- [x] Geometries found in mirrors: Implement mirror-based geometries, e.g., add mirror reflection in grid dynamics.
-- [x] Set up ability to introduce a mirror and detect anomalies within: Add mirror variant or feature, detect anomalies like symmetry breaks or patterns in mirrored regions.
-- [x] Work on browser environment for DOM rendering: Create index.html to run sim in browser, bundle with Vite or similar for DOM access.
-- [x] Verify anomalies: Check if reemergence, randomness, structure metrics are computed correctly in stress tests.
-- [x] Continue working in background until done: Iterate on fixes, testing, and enhancements.
+- [ ] Add variant toggle buttons in index.html for Mirror Inversion, Square Clamp Reflect, Square Inversion Reflect, Square Sticky Reflect
+- [ ] Add zoom in/out buttons in index.html
+- [ ] Update browser.ts to import all variants and use selected variant in runSimulation
+- [ ] Implement zoom functionality in TopologyRenderer (2D mode)
+- [ ] Implement zoom functionality in ThreeDRenderer (3D mode)
+- [ ] Implement zoom functionality in AbstractRenderer (Abstract mode)
+- [ ] Modify renderTrajectory in TopologyRenderer to color trajectory in 4 different colors based on phase segments
+- [ ] Ensure all buttons are connected and visualizations switch properly
+- [ ] Test the app after changes
+- [ ] Create desktop shortcut to launch in browser (run Vite dev server and create .lnk file)
