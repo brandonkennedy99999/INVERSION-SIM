@@ -6,10 +6,10 @@
 - [x] Test the visualization by running `npx tsx src/main.ts` and verify output.
 - [x] Debug any issues with simulation behavior or rendering (e.g., if inversion/anomalies not working as expected).
 - [x] Commit changes with a proper message (e.g., "Complete TopologyRenderer and integrate visualization in main.ts").
-- [ ] Separate inversion events and logically represent them: Enhance event logging for inversions, perhaps add distinct event types for each inversion kind.
-- [ ] Make sim invert on itself from beginning point perspective: Modify inversion logic to reflect trajectory back to start point.
-- [ ] Geometries found in mirrors: Implement mirror-based geometries, e.g., add mirror reflection in grid dynamics.
-- [ ] Set up ability to introduce a mirror and detect anomalies within: Add mirror variant or feature, detect anomalies like symmetry breaks or patterns in mirrored regions.
-- [ ] Work on browser environment for DOM rendering: Create index.html to run sim in browser, bundle with Vite or similar for DOM access.
-- [ ] Verify anomalies: Check if reemergence, randomness, structure metrics are computed correctly in stress tests.
-- [ ] Continue working in background until done: Iterate on fixes, testing, and enhancements.
+- [x] Separate inversion events and logically represent them: Enhance event logging for inversions, perhaps add distinct event types for each inversion kind.
+- [x] Make sim invert on itself from beginning point perspective: Modify inversion logic to reflect trajectory back to start point.
+- [x] Geometries found in mirrors: Implement mirror-based geometries, e.g., add mirror reflection in grid dynamics.
+- [x] Set up ability to introduce a mirror and detect anomalies within: Add mirror variant or feature, detect anomalies like symmetry breaks or patterns in mirrored regions.
+- [x] Work on browser environment for DOM rendering: Create index.html to run sim in browser, bundle with Vite or similar for DOM access.
+- [x] Verify anomalies: Check if reemergence, randomness, structure metrics are computed correctly in stress tests.
+- [x] Continue working in background until done: Iterate on fixes, testing, and enhancements.
