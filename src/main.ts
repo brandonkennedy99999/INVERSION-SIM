@@ -1,33 +1,7 @@
 // src/main.ts
 import fs from "node:fs";
 import path from "node:path";
-import { TopologyRenderer } from './visualization/TopologyRenderer'; 
-
-const renderer = new TopologyRenderer(document.body);
-
-// src/visualization/TopologyRenderer.ts
-export class TopologyRenderer {
-  private canvas: HTMLCanvasElement;
-  private ctx: CanvasRenderingContext2D;
-  private width: number;
-  private height: number;
-
-  constructor(container: HTMLElement, width: number = 800, height: number = 600) {
-    this.canvas = document.createElement('canvas');
-    this.canvas.width = this.width = width;
-    this.canvas.height = this.height = height;
-    this.ctx = this.canvas.getContext('2d')!;
-    container.appendChild(this.canvas);
-    
-    // Basic setup: Black bg, white lines default
-    this.ctx.fillStyle = 'black';
-    this.ctx.fillRect(0, 0, width, height);
-    this.ctx.strokeStyle = 'white';
-    this.ctx.lineWidth = 1;
-  }
-
-  // Methods we'll add next
-}
+import { TopologyRenderer } from './visualization/TopologyRenderer.js';
 
 import {
   SquareInversionReflect,
@@ -151,6 +125,13 @@ function main() {
   console.log(`Saved to: ${runDir}`);
   console.log(`Events: ${result.events.length}`);
   console.log(`Trajectory points: ${result.trajectory.length}`);
+
+  // Visualize the results
+  const renderer = new TopologyRenderer(document.body);
+  renderer.renderGrid(result.trajectory, cfg.sizeX, cfg.sizeY);
+  renderer.renderTrajectory(result.trajectory);
+  renderer.renderEvents(result.events);
+  renderer.renderInversions(result.trajectory);
 }
 
 try {
