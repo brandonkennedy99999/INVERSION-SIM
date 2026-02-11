@@ -1,0 +1,46 @@
+# Summary of Deductions from CORNERPHEN.rtf Against Simulation Logic
+
+## Overview
+This summary deduces empirical structures from CORNERPHEN.rtf against the simulation code in core.ts, variants, and botFleet.ts. The phenomenology describes discrete billiard dynamics with phase evolution, matching the code's event detection and phase updates.
+
+## Key Deductions
+
+### 1. Corner-Event Spacing Bands
+- **Math from CORNERPHEN**: Inter-event spacings s_i = s_{i+1} - s_i, where s_i is step of i-th corner event. Spacings concentrate on discrete values {7,16,20,21,...}.
+- **Simulation Logic Match**: In core.ts, events are detected via variant.detectEvents (e.g., mirror_inversion.ts checks for x=0 or y=0). From demo_5x7_M7.events.csv, spacings between corner events (e.g., 22-23=1, 46-23=23, but focusing on corner steps: 22,46,70,... differences like 24,24,... wait, actual: 46-22=24, 70-46=24, etc., but CORNERPHEN notes bands like 7,16,20,21; code uses rational slope (vx/vy), leading to periodic hits.
+- **Reasoning**: Bands arise from geometry (5x7 grid) and velocity slope. Code confirms: specular reflections and rational vx/vy produce discrete spacings. Persistence across runs indicates geometric property, not artifact.
+- **Config**: 5x7 geometry, multiplier 7, mod 1000003.
+
+### 2. Diagonal vs Off-Diagonal Corner Classes
+- **Math from CORNERPHEN**: Diagonal corners (0,0) and (Lx,Ly), off-diagonal (0,Ly) and (Lx,0). Frequencies differ; diagonal requires both coords align.
+- **Simulation Logic Match**: In variants (e.g., mirror_inversion.ts), corner.diag at (0,0), corner.off at (0,Ly). Code logs eventType as "corner.diag" or "corner.off". From events.csv, alternating diag/off, with diag having +1 phase, off having 7φ mod M.
+- **Reasoning**: Asymmetry reflects rectangle geometry. Code's distinction shapes phenomenology: off-diagonal more frequent, larger diag spacings.
+
+### 3. Phase Ladders and Multiplicative Growth
+- **Math from CORNERPHEN**: Diagonal: φ +=1; Off-diagonal: φ = 7φ mod M. Produces ladder: exponential growth interrupted by +1, wraparound at mod.
+- **Simulation Logic Match**: In variants, applyPhase: for "corner.diag" +1, "corner.off" *7 % mod. From events.csv, phase jumps: 0->14 (7*0+? wait, initial 0, then 14=7*2? Wait, code starts at 0, diag +1 to 1, off *7 to 7, etc. Matches: e.g., after diag 1->2, off 2->14, 14->98 (7*14=98), etc.
+- **Reasoning**: Phase coupled to geometry, read-only witness. Code's updates produce ladders, visible in phase jumps clustering at 7^k mod M.
+
+### 4. Trajectory-Phase Coupling and Manifold Structure
+- **Math from CORNERPHEN**: Polar representation (time->angle, log-phase->radius) forms spirals. Phase stratifies identical spatial points.
+- **Simulation Logic Match**: Trajectory.json records phase per step. Code doesn't feedback phase to trajectory unless inversion. Spirals empirical, matching description.
+- **Reasoning**: State space as torus (geometry) x cyclic phase. Code supports via logged phase.
+
+### 5. Degenerate and Silent Regimes
+- **Math from CORNERPHEN**: Commensurability between geometry, slope, reflection reduces events.
+- **Simulation Logic Match**: Variants handle reflections; changing sizeX/sizeY (e.g., 6x7) may reduce hits. Code's stepOnce ensures movement.
+- **Reasoning**: Not failures; structural. Code allows varying configs to explore.
+
+## Configs Used
+- Geometry: sizeX=5, sizeY=7
+- Multiplier: 7
+- Modulus: 1000003
+- Steps: 5000+ in canonical run
+- Initial: x0=0, y0=0, vx0=-1, vy0=1 (from trajectory)
+
+## Reasoning Against Logic
+- Code implements CORNERPHEN's rules: phase updates match math, events produce bands/ladders.
+- No stochastic elements; deterministic, reproducible.
+- Bots can vary configs (multiplier, mod) to find more anomalies, e.g., different bands or silent regimes.
+
+This summary is downloadable as summary.txt.

@@ -10,7 +10,8 @@ export class TopologyRenderer {
   private ctx: CanvasRenderingContext2D;
   private width: number;
   private height: number;
-  private cellSize: number = 20; // pixels per cell
+  private cellSizeX: number = 20;
+  private cellSizeY: number = 20;
   private zoomLevel: number = 1;
   private colorMode: string = 'normal';
 
@@ -20,6 +21,12 @@ export class TopologyRenderer {
     this.canvas.height = this.height = height;
     this.ctx = this.canvas.getContext('2d')!;
     container.appendChild(this.canvas);
+
+    // Ensure canvas fills the container without borders or margins
+    this.canvas.style.border = 'none';
+    this.canvas.style.margin = '0';
+    this.canvas.style.padding = '0';
+    this.canvas.style.display = 'block';
 
     // Basic setup: Black bg, white lines default
     this.ctx.fillStyle = 'black';
@@ -37,12 +44,16 @@ export class TopologyRenderer {
     const lastState = states[states.length - 1];
     if (!lastState) return;
 
+    // Calculate cell sizes to align with canvas borders
+    this.cellSizeX = this.width / sizeX;
+    this.cellSizeY = this.height / sizeY;
+
     // Draw grid cells colored by phase
     for (let x = 0; x < sizeX; x++) {
       for (let y = 0; y < sizeY; y++) {
         const phase = (lastState.phase + x + y) % 1; // Simple phase coloring, adjust as needed
         this.ctx.fillStyle = `hsl(${phase * 360}, 100%, 50%)`;
-        this.ctx.fillRect(x * this.cellSize, y * this.cellSize, this.cellSize, this.cellSize);
+        this.ctx.fillRect(x * this.cellSizeX, y * this.cellSizeY, this.cellSizeX, this.cellSizeY);
       }
     }
 
@@ -51,20 +62,20 @@ export class TopologyRenderer {
     this.ctx.lineWidth = 1;
     for (let x = 0; x <= sizeX; x++) {
       this.ctx.beginPath();
-      this.ctx.moveTo(x * this.cellSize, 0);
-      this.ctx.lineTo(x * this.cellSize, sizeY * this.cellSize);
+      this.ctx.moveTo(x * this.cellSizeX, 0);
+      this.ctx.lineTo(x * this.cellSizeX, this.height);
       this.ctx.stroke();
     }
     for (let y = 0; y <= sizeY; y++) {
       this.ctx.beginPath();
-      this.ctx.moveTo(0, y * this.cellSize);
-      this.ctx.lineTo(sizeX * this.cellSize, y * this.cellSize);
+      this.ctx.moveTo(0, y * this.cellSizeY);
+      this.ctx.lineTo(this.width, y * this.cellSizeY);
       this.ctx.stroke();
     }
   }
 
-  // Render the trajectory as a path with multi-color segments
-  public renderTrajectory(trajectory: State[], maxIndex?: number) {
+  // Render the trajectory as a path with multi-color segments and fading trail
+  public renderTrajectory(trajectory: State[], maxIndex?: number, loopCount: number = 0) {
     if (trajectory.length < 2) return;
 
     const first = trajectory[0];
@@ -86,37 +97,50 @@ export class TopologyRenderer {
 
     const effectiveMax = maxIndex ?? trajectory.length;
 
-    for (let segment = 0; segment < 4; segment++) {
-      const startIdx = segment * segmentLength;
-      const endIdx = segment === 3 ? trajectory.length : (segment + 1) * segmentLength;
+    // Fading trail: render previous segments with decreasing opacity
+    const trailLength = 10; // Number of previous frames to show
+    for (let trail = 0; trail < trailLength; trail++) {
+      const trailMax = Math.max(0, effectiveMax - trail * 50);
+      if (trailMax <= 0) continue;
+      this.ctx.globalAlpha = (trailLength - trail) / trailLength; // Fade out
 
-      this.ctx.strokeStyle = colors[segment]!;
-      this.ctx.lineWidth = 2;
-      this.ctx.beginPath();
+      for (let segment = 0; segment < 4; segment++) {
+        const startIdx = segment * segmentLength;
+        const endIdx = segment === 3 ? trajectory.length : (segment + 1) * segmentLength;
 
-      const startState = trajectory[Math.max(startIdx, 0)];
-      if (startState && startIdx < effectiveMax) {
-        this.ctx.moveTo(startState.x * this.cellSize * this.zoomLevel + this.cellSize * this.zoomLevel / 2, startState.y * this.cellSize * this.zoomLevel + this.cellSize * this.zoomLevel / 2);
-      }
+        // Change color over time for trail, shifting with loop count
+        const hue = (segment * 90 + trail * 30 + loopCount * 45) % 360;
+        this.ctx.strokeStyle = `hsl(${hue}, 100%, 50%)`;
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
 
-      for (let i = startIdx + 1; i < Math.min(endIdx, effectiveMax); i++) {
-        const state = trajectory[i];
-        if (state) {
-          this.ctx.lineTo(state.x * this.cellSize * this.zoomLevel + this.cellSize * this.zoomLevel / 2, state.y * this.cellSize * this.zoomLevel + this.cellSize * this.zoomLevel / 2);
+        const startState = trajectory[Math.max(startIdx, 0)];
+        if (startState && startIdx < trailMax) {
+          this.ctx.moveTo(startState.x * this.cellSizeX * this.zoomLevel + this.cellSizeX * this.zoomLevel / 2, startState.y * this.cellSizeY * this.zoomLevel + this.cellSizeY * this.zoomLevel / 2);
         }
+
+        for (let i = startIdx + 1; i < Math.min(endIdx, trailMax); i++) {
+          const state = trajectory[i];
+          if (state) {
+            this.ctx.lineTo(state.x * this.cellSizeX * this.zoomLevel + this.cellSizeX * this.zoomLevel / 2, state.y * this.cellSizeY * this.zoomLevel + this.cellSizeY * this.zoomLevel / 2);
+          }
+        }
+        this.ctx.stroke();
       }
-      this.ctx.stroke();
     }
+    this.ctx.globalAlpha = 1; // Reset alpha
   }
 
   public animateTrajectory(trajectory: State[], speed: number = 50, loop: boolean = true) {
     let maxIndex = 0;
+    let loopCount = 0;
     const animate = () => {
-      this.renderTrajectory(trajectory, maxIndex);
+      this.renderTrajectory(trajectory, maxIndex, loopCount);
       maxIndex += speed;
       if (maxIndex >= trajectory.length) {
         if (loop) {
           maxIndex = 0;
+          loopCount++;
         } else {
           return;
         }

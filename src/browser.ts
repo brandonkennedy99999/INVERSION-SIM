@@ -29,9 +29,9 @@ class ThreeDRenderer {
   constructor(container: HTMLElement) {
     this.container = container;
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(75, 800 / 600, 0.1, 1000);
+    this.camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
     this.renderer = new THREE.WebGLRenderer();
-    this.renderer.setSize(800, 600);
+    this.renderer.setSize(container.clientWidth, container.clientHeight);
     container.appendChild(this.renderer.domElement);
     this.camera.position.z = 10;
 
@@ -255,7 +255,7 @@ function switchToMode(mode: string) {
     topologyRenderer = new TopologyRenderer(visualization, 800, 600);
     topologyRenderer.setColorMode(colorMode);
     topologyRenderer.renderGrid(currentResult.trajectory, currentCfg.sizeX, currentCfg.sizeY);
-    topologyRenderer.animateTrajectory(currentResult.trajectory);
+    topologyRenderer.animateTrajectory(currentResult.trajectory, 50, true); // Enable looping
     topologyRenderer.renderEvents(currentResult.events);
     topologyRenderer.renderInversions(currentResult.trajectory);
     currentRenderer = topologyRenderer;
@@ -368,6 +368,15 @@ window.addEventListener('load', () => {
   const runBotsBtn = document.getElementById('runBots');
   if (runBotsBtn) runBotsBtn.addEventListener('click', runBotFleet);
 
+  const startContinuousBotsBtn = document.getElementById('startContinuousBots');
+  if (startContinuousBotsBtn) startContinuousBotsBtn.addEventListener('click', startContinuousBotFleet);
+
+  const stopContinuousBotsBtn = document.getElementById('stopContinuousBots');
+  if (stopContinuousBotsBtn) stopContinuousBotsBtn.addEventListener('click', stopContinuousBotFleet);
+
+  const displayCategoriesBtn = document.getElementById('displayCategories');
+  if (displayCategoriesBtn) displayCategoriesBtn.addEventListener('click', displayBotCategories);
+
   // Initial run
   runSimulation();
 });
@@ -384,4 +393,34 @@ function runBotFleet() {
   console.log("Group 1 results:", group1Results);
   // Display results in UI or console
   alert(`Bot fleet run complete. Group 0: ${group0Results.length} bots, Group 1: ${group1Results.length} bots. Check console for details.`);
+}
+
+function startContinuousBotFleet() {
+  console.log("Starting continuous bot fleet...");
+  if (!botFleet) {
+    botFleet = new BotFleet();
+  }
+  botFleet.startContinuousRunning(5000); // Run every 5 seconds
+  alert("Bot fleet started continuously. Check console for updates.");
+}
+
+function stopContinuousBotFleet() {
+  console.log("Stopping continuous bot fleet...");
+  if (botFleet) {
+    botFleet.stopContinuousRunning();
+  }
+  alert("Bot fleet stopped.");
+}
+
+function displayBotCategories() {
+  if (!botFleet) {
+    alert("No bot fleet running.");
+    return;
+  }
+  const categories = botFleet.getCategories();
+  let message = "Bot Categories:\n";
+  for (const [cat, data] of categories) {
+    message += `${cat}: ${data.length} entries\n`;
+  }
+  alert(message);
 }
