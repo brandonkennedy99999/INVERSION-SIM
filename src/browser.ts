@@ -319,6 +319,34 @@ let autorunners: Map<number, any> = new Map();
 let autorunnerAnimations: Map<number, { startPos: { x: number; y: number; z: number }; endPos: { x: number; y: number; z: number }; startTime: number; duration: number }> = new Map();
 let animationFrameId: number | null = null;
 let autorunnerStates: any[] = [];
+
+// Initialize autorunnerStates with 5x5x5 grid
+const matrixSize = 5;
+const scale = 10;
+const positions = [];
+for (let x = 0; x < matrixSize; x++) {
+  for (let y = 0; y < matrixSize; y++) {
+    for (let z = 0; z < matrixSize; z++) {
+      positions.push({ x: x * scale, y: y * scale, z: z * scale });
+    }
+  }
+}
+for (let i = 0; i < 125; i++) {
+  const pos = positions[i];
+  autorunnerStates.push({
+    id: i,
+    position: pos,
+    intendedTrajectory: [pos],
+    actualTrajectory: [pos],
+    direction: { dx: Math.random() - 0.5, dy: Math.random() - 0.5, dz: Math.random() - 0.5 },
+    group: i % 2,
+    orientationHistory: [pos],
+    geometry: { theta: Math.random() * Math.PI * 2, phi: Math.random() * Math.PI / 2 },
+    luckScore: 0,
+    randomLuckScore: 0
+  });
+}
+
 class Autorunner3DRenderer {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
@@ -494,8 +522,22 @@ function connectWebSocket() {
       // Update individual autorunner data for 3D
       if (autorunner3DRenderer) {
         // Update the state
-        const state = autorunnerStates.find(s => s.id === data.autorunnerId);
-        if (state) {
+        let state = autorunnerStates.find(s => s.id === data.autorunnerId);
+        if (!state) {
+          state = {
+            id: data.autorunnerId,
+            position: data.position,
+            intendedTrajectory: data.intendedTrajectory || [],
+            actualTrajectory: data.trajectory || [],
+            direction: data.direction,
+            group: data.group,
+            orientationHistory: [],
+            geometry: { theta: 0, phi: 0 },
+            luckScore: 0,
+            randomLuckScore: 0
+          };
+          autorunnerStates.push(state);
+        } else {
           state.position = data.position;
           state.direction = data.direction;
           state.actualTrajectory = data.trajectory;
@@ -510,15 +552,6 @@ function connectWebSocket() {
       updateCollectiveAnomalies(data.collectiveAnomalies);
       updateTopKTables(data.topK);
       updateGroupSummaries(data.runnerData);
-      // Update autorunnerStates for 3D rendering
-      autorunnerStates = data.runnerData.map((d: any) => ({
-        id: d.id,
-        position: d.position,
-        intendedTrajectory: d.trajectory || [],
-        actualTrajectory: d.trajectory || [],
-        direction: d.direction,
-        group: d.group
-      }));
       if (autorunner3DRenderer) {
         autorunner3DRenderer.render();
       }
