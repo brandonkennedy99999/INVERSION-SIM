@@ -454,14 +454,21 @@ class Autorunner3DRenderer {
         });
       }
 
-      // Render current geometry as overlay (e.g., a wireframe sphere at position)
+      // Render current geometry as overlay matrix (5x5x5 grid)
       if (state.geometry) {
-        const geomGeometry = new THREE.SphereGeometry(2, 8, 6);
-        const geomEdges = new THREE.EdgesGeometry(geomGeometry);
-        const geomMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
-        const geomWireframe = new THREE.LineSegments(geomEdges, geomMaterial);
-        geomWireframe.position.set(pos.x, pos.y, pos.z);
-        this.scene.add(geomWireframe);
+        const matrixSize = 5;
+        const matrixScale = 0.5;
+        for (let x = 0; x < matrixSize; x++) {
+          for (let y = 0; y < matrixSize; y++) {
+            for (let z = 0; z < matrixSize; z++) {
+              const geomGeometry = new THREE.BoxGeometry(matrixScale, matrixScale, matrixScale);
+              const geomMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 });
+              const geomCube = new THREE.Mesh(geomGeometry, geomMaterial);
+              geomCube.position.set(pos.x + (x - matrixSize / 2) * matrixScale, pos.y + (y - matrixSize / 2) * matrixScale, pos.z + (z - matrixSize / 2) * matrixScale);
+              this.scene.add(geomCube);
+            }
+          }
+        }
       }
     });
 
@@ -798,11 +805,11 @@ function updateAnomaliesTable(anomalies: any, logEntry: any, topK?: any) {
       }
     });
 
-    // Update DVD banner with top anomaly
+    // Update banner with top anomaly
     if (topAnomaly) {
-      const dvdText = document.getElementById('dvdText');
-      if (dvdText) {
-        dvdText.textContent = `Top Anomaly: ${topAnomaly.type} Score ${topAnomaly.score.toFixed(4)} Run ${topAnomaly.run} Mul ${topAnomaly.multiplier} Grid ${topAnomaly.sizeX}x${topAnomaly.sizeY} - Exploring Quantum Realities`;
+      const bannerText = document.getElementById('bannerText');
+      if (bannerText) {
+        bannerText.textContent = `Top Anomaly: ${topAnomaly.type} Score ${topAnomaly.score.toFixed(4)} Run ${topAnomaly.run} Mul ${topAnomaly.multiplier} Grid ${topAnomaly.sizeX}x${topAnomaly.sizeY} - Exploring Quantum Realities`;
       }
     }
 

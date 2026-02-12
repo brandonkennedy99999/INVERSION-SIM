@@ -295,7 +295,7 @@ F<!DOCTYPE html>
       background: rgba(0, 0, 0, 0.5);
       border-radius: 5px;
     }
-    #dvdBanner {
+    #banner {
       position: fixed;
       top: 10px;
       left: 0;
@@ -304,20 +304,16 @@ F<!DOCTYPE html>
       font-family: 'Orbitron', monospace;
       font-size: 1.2em;
       color: #00d4ff;
-      animation: dvdScreensaver 15s linear infinite;
+      animation: scrollBanner 20s linear infinite;
       z-index: 1000;
       white-space: nowrap;
+      background: rgba(0, 0, 0, 0.8);
+      padding: 10px;
+      border-bottom: 2px solid #00d4ff;
     }
-    @keyframes dvdScreensaver {
-      0% { transform: translateX(-100%) rotate(0deg); }
-      12.5% { transform: translateX(0%) rotate(90deg); }
-      25% { transform: translateX(100%) rotate(180deg); }
-      37.5% { transform: translateX(100%) rotate(270deg); }
-      50% { transform: translateX(50%) rotate(360deg) scale(1.2); }
-      62.5% { transform: translateX(0%) rotate(450deg); }
-      75% { transform: translateX(-100%) rotate(540deg); }
-      87.5% { transform: translateX(-50%) rotate(630deg) scale(0.8); }
-      100% { transform: translateX(-100%) rotate(720deg); }
+    @keyframes scrollBanner {
+      0% { transform: translateX(100%); }
+      100% { transform: translateX(-100%); }
     }
     #hyperbolicGrid {
       margin-top: 20px;
@@ -674,9 +670,9 @@ F<!DOCTYPE html>
       <canvas id="hyperbolicCanvas" width="800" height="600"></canvas>
     </div>
     </div>
-    <!-- DVD Screensaver Banner -->
-    <div id="dvdBanner">
-      <span id="dvdText">Exploring the Edges of Reality: Where Quantum Inversions Meet Parameter Space Boundaries - Edge Detection in the Fabric of Simulation</span>
+    <!-- 5x7 Banner -->
+    <div id="banner">
+      <span id="bannerText">Top Anomaly: Structure Score 0.950 Run 001234 Mul 7 Grid 5x7 - Exploring Quantum Realities</span>
     </div>
 
     <div id="visualization"></div>

@@ -399,7 +399,7 @@ const cubePositions = [
 ];
 
 // Initialize autorunner states in 2x2x2 cube matrix
-const matrixSize = 2;
+const matrixSize = 5;
 const positions = [];
 for (let x = 0; x < matrixSize; x++) {
   for (let y = 0; y < matrixSize; y++) {
@@ -408,7 +408,7 @@ for (let x = 0; x < matrixSize; x++) {
     }
   }
 }
-for (let i = 0; i < 8; i++) {
+for (let i = 0; i < 125; i++) {
   const pos = positions[i]!;
   autorunnerStates.push({
     id: i,
@@ -423,6 +423,9 @@ for (let i = 0; i < 8; i++) {
     randomLuckScore: 0
   });
 }
+
+let luckComparisonCount = 0;
+let luckIncreasingCount = 0;
 
 function updateAutorunnerPositions() {
   autorunnerStates.forEach(state => {
@@ -454,10 +457,31 @@ function updateAutorunnerPositions() {
     state.geometry.phi += (Math.random() - 0.5) * 0.1;
     state.geometry.phi = Math.max(0, Math.min(Math.PI / 2, state.geometry.phi)); // Clamp phi
 
+    // Update luck scores: simulate based on some metric, e.g., deviation from intended
+    const intendedDist = Math.sqrt(state.direction.dx ** 2 + state.direction.dy ** 2 + state.direction.dz ** 2);
+    const actualDist = Math.sqrt((actualNext.x - lastIntended.x) ** 2 + (actualNext.y - lastIntended.y) ** 2 + (actualNext.z - lastIntended.z) ** 2);
+    const luck = Math.max(0, 1 - Math.abs(actualDist - intendedDist)); // Higher if closer to intended
+    state.luckScore = (state.luckScore + luck) / 2; // Average
+    state.randomLuckScore = (state.randomLuckScore + Math.random()) / 2; // Random average
+
     // Keep last 100 points
     if (state.intendedTrajectory.length > 100) state.intendedTrajectory.shift();
     if (state.actualTrajectory.length > 100) state.actualTrajectory.shift();
   });
+
+  // Compare average luck vs random
+  const avgLuck = autorunnerStates.reduce((sum, s) => sum + s.luckScore, 0) / autorunnerStates.length;
+  const avgRandom = autorunnerStates.reduce((sum, s) => sum + s.randomLuckScore, 0) / autorunnerStates.length;
+  luckComparisonCount++;
+  if (avgLuck > avgRandom) {
+    luckIncreasingCount++;
+  }
+  if (luckComparisonCount % 100 === 0) { // Log every 100 updates
+    const increasingOften = luckIncreasingCount > luckComparisonCount * 0.6; // >60% of time
+    if (increasingOften) {
+      console.log(`Luck increasing often: avgLuck ${avgLuck.toFixed(3)} > avgRandom ${avgRandom.toFixed(3)}, count ${luckIncreasingCount}/${luckComparisonCount}`);
+    }
+  }
 }
 
 import BotFleet from './botFleet.js';
