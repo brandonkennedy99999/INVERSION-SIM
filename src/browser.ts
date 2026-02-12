@@ -15,6 +15,7 @@ let currentResult: any = null;
 let currentCfg: RunConfig;
 let currentVariant = MirrorInversion;
 let botFleet: BotFleet | null = null;
+let ws: WebSocket | null = null;
 
 class ThreeDRenderer {
   private scene: THREE.Scene;
@@ -303,8 +304,59 @@ function zoom(factor: number) {
   }
 }
 
+// WebSocket connection
+function connectWebSocket() {
+  ws = new WebSocket('ws://localhost:8080');
+  ws.onopen = () => {
+    console.log('Connected to autorunner WebSocket');
+  };
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    if (data.type === 'runUpdate') {
+      updateRunCount(data.runCount);
+      updateAnomaliesTable(data.anomalies, data.logEntry);
+    }
+  };
+  ws.onclose = () => {
+    console.log('WebSocket connection closed, retrying in 5 seconds...');
+    setTimeout(connectWebSocket, 5000);
+  };
+  ws.onerror = (error) => {
+    console.error('WebSocket error:', error);
+  };
+}
+
+function updateRunCount(count: number) {
+  const runCountElement = document.getElementById('runCount');
+  if (runCountElement) {
+    runCountElement.textContent = count.toString();
+  }
+}
+
+function updateAnomaliesTable(anomalies: any, logEntry: any) {
+  const tableBody = document.querySelector('#anomaliesTable tbody');
+  if (tableBody) {
+    // Add new row for the latest anomaly
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${logEntry.run}</td>
+      <td>Latest</td>
+      <td>${anomalies.randomness.toFixed(4)}</td>
+      <td>Run ${logEntry.run} - ${anomalies.structure.toFixed(4)} structure</td>
+      <td>${new Date().toLocaleString()}</td>
+    `;
+    // Keep only top 10 rows
+    if (tableBody.children.length >= 10) {
+      tableBody.removeChild(tableBody.lastChild!);
+    }
+    tableBody.insertBefore(row, tableBody.firstChild);
+  }
+}
+
 // Event listeners
 window.addEventListener('load', () => {
+  connectWebSocket();
+
   const runSimBtn = document.getElementById('runSim');
   const mode2DBtn = document.getElementById('mode2D');
   const mode3DBtn = document.getElementById('mode3D');

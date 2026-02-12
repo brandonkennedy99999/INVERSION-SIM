@@ -26,6 +26,7 @@
   "dependencies": {
     "@types/three": "^0.182.0",
     "ethers": "^6.16.0",
-    "three": "^0.182.0"
+    "three": "^0.182.0",
+    "ws": "^8.18.0"
   }
 }

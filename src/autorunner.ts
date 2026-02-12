@@ -3,10 +3,16 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { runVariant, writeOutputs, computeAnomalies, checkBandStructure, checkPrimeEnvelopes, spectralAnalysis, allocateRunDir, readRunCounter } from "./core.js";
+import { runVariant, writeOutputs } from "./core.js";
 import { AnomalyDetector } from "./anomaly_metrics.js";
 import { SquareInversionReflect } from "./variants/square_inversion_reflect.js";
 import type { RunConfig } from "./types.js";
+import WebSocket from "ws";
+
+// ---------- paths ----------
+const BASE_DIR = path.resolve("../Documents/GitHub/INVERSION-SIM"); // Adjust if needed
+const RUNS_DIR = path.join(BASE_DIR, "runs");
+const COUNTER_PATH = path.join(BASE_DIR, "run_counter.txt");
 
 // ---------- Top-K Anomaly Stores (persistent ranking) ----------
 class TopKAnomalyStore {
@@ -66,11 +72,6 @@ const anomalyStores = {
   structure: new TopKAnomalyStore("anomalies/structure_top.json", 1000, "structure"),
   reemergence: new TopKAnomalyStore("anomalies/reemergence_top.json", 1000, "reemergence"),
 };
-
-// ---------- paths ----------
-const BASE_DIR = path.resolve("../Documents/GitHub/INVERSION-SIM"); // Adjust if needed
-const RUNS_DIR = path.join(BASE_DIR, "runs");
-const COUNTER_PATH = path.join(BASE_DIR, "run_counter.txt");
 
 // ---------- helpers ----------
 function ensureDir(dir: string) {
@@ -164,6 +165,8 @@ function computeAnomalies(result: any, cfg: RunConfig) {
   };
 }
 
+
+
 // ---------- Self-Reflection and Auto-Improvement ----------
 let selfReflectionTriggered = false;
 let startTime = Date.now();
@@ -198,6 +201,25 @@ async function performSelfReflection(detector: AnomalyDetector, runCount: number
   console.log("Anomaly computation enhanced with spectral analysis integration");
 
   selfReflectionTriggered = true;
+}
+
+// ---------- WebSocket Server ----------
+const wss = new WebSocket.Server({ port: 8080 });
+console.log("WebSocket server started on port 8080");
+
+wss.on('connection', (ws: WebSocket) => {
+  console.log('Browser connected to WebSocket');
+  ws.on('message', (message: WebSocket.RawData) => {
+    console.log('Received:', message.toString());
+  });
+});
+
+function broadcast(data: any) {
+  wss.clients.forEach((client: WebSocket) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify(data));
+    }
+  });
 }
 
 // ---------- Main loop ----------
@@ -275,8 +297,23 @@ async function runBackgroundSimulations() {
         }
       }
 
+      // Broadcast to browser
+      broadcast({
+        type: 'runUpdate',
+        runCount,
+        anomalies: anomalies,
+        logEntry
+      });
+
       // Post to blockchain (stub)
       await postToBlockchain(logEntry);
+
+      // Pause every 10 runs to "upload" data
+      if (runCount % 10 === 0) {
+        console.log(`Pausing for 5 seconds to upload data after ${runCount} runs...`);
+        await new Promise(resolve => setTimeout(resolve, 5000)); // 5 second pause
+        console.log('Resuming simulations...');
+      }
 
       // Adjust config if not optimal
       if (!isOptimal) {
