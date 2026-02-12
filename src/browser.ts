@@ -839,22 +839,8 @@ function runBotFleet() {
 }
 
 function startContinuousBotFleet() {
-  console.log("Starting continuous bot fleet...");
-  if (!botFleet) {
-    botFleet = new BotFleet();
-  }
-  botFleet.startContinuousRunning(5000); // Run every 5 seconds
-  // Auto-update logic summary and live updates every 5 seconds
-  setInterval(() => {
-    displayBotLogicSummary();
-    updateBotLog();
-    updateCoordinationGraph();
-  }, 5000);
-  // Initial display
-  displayBotLogicSummary();
-  updateBotLog();
-  updateCoordinationGraph();
-  alert("Bot fleet started continuously. Check console for updates.");
+  console.log("Continuous bot fleet start disabled until user requests.");
+  alert("Bot fleet start is disabled. Please tell me when to enable it.");
 }
 
 function stopContinuousBotFleet() {

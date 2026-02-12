@@ -643,4 +643,4 @@ const postToBlockchain = async (results: any) => {
 };
 
 // Start the background simulations
-runBackgroundSimulations().catch(console.error);
+// runBackgroundSimulations().catch(console.error);
