@@ -15,6 +15,12 @@ interface ConstraintFeedback {
   suggestions?: string[];
 }
 
+interface GeometricState {
+  theta: number; // angle on equator (circle of keys)
+  phi: number; // elevation (0 for equator, up to pi/2 for sphere)
+  braidedTrajectory: { theta: number; phi: number; step: number }[];
+}
+
 class Bot {
   private id: number;
   private group: number;
@@ -23,15 +29,26 @@ class Bot {
     "Events must be fewer than 1000",
     "Inversions must be positive",
     "Phase must be between 0 and 1",
-    "Grid size must be reasonable (5-20)"
+    "Grid size must be reasonable (5-20)",
+    "Geometric position must remain on sphere (phi <= pi/2)",
+    "Braided trajectory must not collapse (maintain separation in phi)"
   ];
   private currentConfig: RunConfig;
   private history: { config: RunConfig; feedback: ConstraintFeedback }[] = [];
+  private geometricState: GeometricState;
+  private stuckCounter: number = 0;
+  private colPhase: 'seeding' | 'exploration' | 'stuckness' | 'emergence' | 'stabilization' = 'seeding';
 
   constructor(id: number, group: number) {
     this.id = id;
     this.group = group;
     this.currentConfig = this.generateConfig();
+    // Initialize geometric state on equator (circle of keys)
+    this.geometricState = {
+      theta: (this.id * 2 * Math.PI) / 8, // Evenly spaced on circle
+      phi: 0, // Start on equator
+      braidedTrajectory: []
+    };
   }
 
   // Generate a new config autonomously
@@ -112,30 +129,65 @@ class Bot {
 
   // Iterate based on feedback (COL: no answers, only constraints)
   iterate(feedback: ConstraintFeedback): RunConfig {
-    if (feedback.valid) {
-      // Slightly perturb for exploration
-      this.generateConfig();
+    // Update COL phase
+    if (!feedback.valid) {
+      this.stuckCounter++;
+      if (this.stuckCounter > 3) {
+        this.colPhase = 'stuckness';
+      }
     } else {
-      // Adjust based on suggestions (simple heuristics)
-      if (feedback.suggestions && feedback.suggestions.includes("Increase steps")) {
-        this.currentConfig.steps *= 1.5;
+      this.stuckCounter = 0;
+      if (this.colPhase === 'stuckness') {
+        this.colPhase = 'emergence';
+      } else if (this.colPhase === 'emergence') {
+        this.colPhase = 'stabilization';
+      } else {
+        this.colPhase = 'exploration';
       }
-      if (feedback.suggestions && feedback.suggestions.includes("Reduce steps")) {
-        this.currentConfig.steps *= 0.5;
-      }
-      if (feedback.suggestions && feedback.suggestions.includes("Set sizeX and sizeY between 5 and 20")) {
-        this.currentConfig.sizeX = Math.max(5, Math.min(20, this.currentConfig.sizeX));
-        this.currentConfig.sizeY = Math.max(5, Math.min(20, this.currentConfig.sizeY));
-      }
-      // Re-generate otherwise
-      this.generateConfig();
     }
+
+    // COL phases: seeding (initial), exploration (perturb), stuckness (redirect), emergence (self-generated), stabilization (stress-test)
+    if (this.colPhase === 'seeding') {
+      // Seed with constraints, no changes yet
+      this.generateConfig();
+    } else if (this.colPhase === 'exploration') {
+      // Perturb config slightly
+      this.generateConfig();
+    } else if (this.colPhase === 'stuckness') {
+      // Redirect sideways: invert logic, change group direction
+      this.currentConfig.multiplier = this.currentConfig.multiplier === 7 ? 3 : 7; // Invert multiplier
+      this.currentConfig.sizeX = Math.max(5, Math.min(20, this.currentConfig.sizeX + (Math.random() > 0.5 ? 1 : -1))); // Small change
+      this.currentConfig.sizeY = Math.max(5, Math.min(20, this.currentConfig.sizeY + (Math.random() > 0.5 ? 1 : -1)));
+    } else if (this.colPhase === 'emergence') {
+      // Allow self-generated: keep current if valid, else small adjust
+      if (feedback.valid) {
+        // No change, let it stabilize
+      } else {
+        this.generateConfig();
+      }
+    } else if (this.colPhase === 'stabilization') {
+      // Stress-test: vary inversion schedule
+      this.currentConfig.inversionSchedule = this.currentConfig.inversionSchedule.map(inv => ({
+        step: inv.step + Math.floor(Math.random() * 1000) - 500,
+        kind: inv.kind
+      }));
+    }
+
+    // Update geometric state: braided trajectory on sphere
+    const step = this.history.length;
+    const deltaTheta = (this.group === 0 ? 0.1 : -0.1) * (feedback.valid ? 1 : -1); // Group 0 increases, 1 decreases
+    const deltaPhi = feedback.valid ? 0.05 : -0.05; // Rise on valid, fall on invalid
+    this.geometricState.theta = (this.geometricState.theta + deltaTheta) % (2 * Math.PI);
+    this.geometricState.phi = Math.max(0, Math.min(Math.PI / 2, this.geometricState.phi + deltaPhi));
+    this.geometricState.braidedTrajectory.push({ theta: this.geometricState.theta, phi: this.geometricState.phi, step });
+
     return this.currentConfig;
   }
 
   getId(): number { return this.id; }
   getGroup(): number { return this.group; }
   getHistory(): any[] { return this.history; }
+  getGeometricState(): GeometricState { return this.geometricState; }
 }
 
 export class BotFleet {
@@ -365,6 +417,12 @@ export class BotFleet {
   // Get logic change log
   getLogicChangeLog(): string[] {
     return this.logicChangeLog;
+  }
+
+  // Load from local storage (for browser mode)
+  private loadFromLocalStorage(): void {
+    // Placeholder for browser persistence
+    console.log('Loading from local storage not implemented');
   }
 
   // Upload simulation summary to blockchain for auto deleter bots

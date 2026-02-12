@@ -307,333 +307,38 @@ function broadcast(data: any) {
 
 
 
-// ---------- Notepad Management for 8 Autorunners ----------
-interface AutorunnerNotepad {
-  id: number;
-  cfg: RunConfig;
-  anomalies: any;
-  position: { x: number; y: number }; // x: multiplier, y: sizeX
-  direction: { dx: number; dy: number };
-  trajectory: { x: number; y: number }[]; // History of positions over cycles
-  group: number; // 1, 2, or 3
-  searchedConfigs: Set<string>; // Memory of searched configs
-}
+import BotFleet from './botFleet';
 
-const NUM_AUTORUNNERS = 8;
-const NOTEPAD_FILES = Array.from({ length: NUM_AUTORUNNERS }, (_, i) => `autorunner${i + 1}.json`);
+// Use BotFleet for COL and braided geometry
+let botFleet: BotFleet;
 
-function initializeNotepad(id: number): AutorunnerNotepad {
-  const baseCfg: RunConfig = {
-    sizeX: 5 + id, // Vary sizeX from 5 to 12
-    sizeY: 7 + id,
-    x0: 1,
-    y0: 1,
-    vx0: 1,
-    vy0: 1,
-    phase0: 0,
-    steps: 200003,
-    multiplier: 7 + id, // Vary multiplier from 7 to 14
-    mod: 1000003,
-  };
-  baseCfg.inversionSchedule = [
-    { step: Math.floor(baseCfg.steps * 0.20), kind: "GEOM" },
-    { step: Math.floor(baseCfg.steps * 0.40), kind: "SPHERE" },
-    { step: Math.floor(baseCfg.steps * 0.60), kind: "OBSERVER" },
-    { step: Math.floor(baseCfg.steps * 0.80), kind: "CAUSAL" },
-  ];
-  // Assign groups: 1-3: group 1, 4-7: group 2, 8: group 3
-  const group = id <= 3 ? 1 : id <= 7 ? 2 : 3;
-  return {
-    id,
-    cfg: baseCfg,
-    anomalies: {},
-    position: { x: baseCfg.multiplier, y: baseCfg.sizeX },
-    direction: { dx: 0, dy: 0 },
-    trajectory: [{ x: baseCfg.multiplier, y: baseCfg.sizeX }],
-    group,
-    searchedConfigs: new Set<string>(),
-  };
-}
-
-function loadNotepad(file: string): AutorunnerNotepad {
-  if (fs.existsSync(file)) {
-    try {
-      const data = JSON.parse(fs.readFileSync(file, "utf8"));
-      // Ensure searchedConfigs is a Set
-      if (!data.searchedConfigs) {
-        data.searchedConfigs = new Set<string>();
-      } else if (Array.isArray(data.searchedConfigs)) {
-        data.searchedConfigs = new Set(data.searchedConfigs);
-      } else {
-        data.searchedConfigs = new Set<string>();
-      }
-      return data;
-    } catch (error) {
-      console.error(`Error loading ${file}:`, error);
-    }
-  }
-  const match = file.match(/\d+/);
-  const id = match ? parseInt(match[0]) : 1;
-  return initializeNotepad(id);
-}
-
-function saveNotepad(file: string, notepad: AutorunnerNotepad) {
-  const data = { ...notepad, searchedConfigs: Array.from(notepad.searchedConfigs) };
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
-}
-
-// ---------- Main loop for 8 Autorunners ----------
+// ---------- Main loop for BotFleet ----------
 async function runBackgroundSimulations() {
-  const detector = new AnomalyDetector([0.5, 0.5, 100]); // Thresholds for randomness, structure, reemergence
+  botFleet = new BotFleet(true); // Browser mode
+  botFleet.startContinuousRunning(5000); // Run every 5 seconds
 
-  let cycleCount = 0;
+  // Broadcast to browser
+  setInterval(() => {
+    const bots = botFleet.getBots();
+    const runnerData = bots.map(bot => ({
+      id: bot.getId(),
+      position: { x: bot.getGeometricState().theta, y: bot.getGeometricState().phi }, // Map to sphere coords
+      direction: { dx: 0, dy: 0 }, // Placeholder
+      anomalies: {} // Placeholder
+    }));
+
+    broadcast({
+      type: 'cycleUpdate',
+      cycleCount: 0, // Placeholder
+      runnerData,
+      collectiveAnomalies: { avgRandomness: 0, avgStructure: 0, avgReemergence: 0 },
+      topK: {} // Placeholder
+    });
+  }, 1000);
+
+  // Keep running forever
   while (true) {
-    try {
-      cycleCount++;
-      console.log(`Starting cycle ${cycleCount} for 8 autorunners`);
-
-      const runnerData: { id: number; position: { x: number; y: number }; direction: { dx: number; dy: number }; anomalies: any }[] = [];
-      const allAnomalies: any[] = [];
-
-      // Run each autorunner sequentially
-      for (let i = 0; i < NUM_AUTORUNNERS; i++) {
-        const notepadFile = NOTEPAD_FILES[i];
-        let notepad = loadNotepad(notepadFile);
-
-        // Check memory to avoid repeating configs
-        const configKey = `${notepad.cfg.multiplier}_${notepad.cfg.sizeX}`;
-        if (notepad.searchedConfigs.has(configKey)) {
-          // Add random exploration to find new areas
-          notepad.cfg.multiplier += (Math.random() - 0.5) * 2;
-          notepad.cfg.sizeX += (Math.random() - 0.5) * 2;
-          notepad.cfg.multiplier = Math.max(1, Math.min(20, notepad.cfg.multiplier));
-          notepad.cfg.sizeX = Math.max(5, Math.min(15, notepad.cfg.sizeX));
-        } else {
-          notepad.searchedConfigs.add(configKey);
-        }
-
-        console.log(`Autorunner ${notepad.id}: multiplier ${notepad.cfg.multiplier}, size ${notepad.cfg.sizeX}x${notepad.cfg.sizeY}`);
-
-        const result = runVariant(SquareInversionReflect, notepad.cfg);
-        const baseAnomalies = computeAnomalies(result, notepad.cfg);
-        const newAnomalies = detectNewAnomalies(result, notepad.cfg, baseAnomalies);
-        const anomalies = { ...baseAnomalies, ...newAnomalies };
-        notepad.anomalies = anomalies;
-        allAnomalies.push(anomalies);
-
-        const anomalyData = [anomalies.randomness, anomalies.structure, anomalies.reemergence];
-        const detectedAnomalies = detector.detectAnomalies(anomalyData);
-
-        const bandOk = checkBandStructure(result.events);
-        const primeOk = checkPrimeEnvelopes(result.trajectory, notepad.cfg);
-        const spectralOk = spectralAnalysis(result.trajectory);
-
-        const isOptimal = detectedAnomalies.length === 0 && bandOk && primeOk && spectralOk;
-
-        console.log(`Autorunner ${notepad.id}: Anomalies: ${detectedAnomalies.length}, Band: ${bandOk}, Prime: ${primeOk}, Spectral: ${spectralOk}, Optimal: ${isOptimal}`);
-
-        // Always save run data
-        const { runDir, runName } = allocateRunDir();
-        writeOutputs(runDir, runName, result, notepad.cfg);
-
-        // Log results
-        const logEntry = {
-          run: cycleCount * NUM_AUTORUNNERS + i,
-          cfg: notepad.cfg,
-          anomalies,
-          detectedAnomalies,
-          bandOk,
-          primeOk,
-          spectralOk,
-          isOptimal,
-          runDir,
-          autorunnerId: notepad.id,
-        };
-        console.log('Results:', logEntry);
-
-        // Try to insert into top-K stores
-        let inserted = false;
-        for (const [type, store] of Object.entries(anomalyStores)) {
-          if (store!.tryInsert(logEntry)) {
-            inserted = true;
-            console.log(`Inserted into ${type} top-K store`);
-          }
-        }
-        if (inserted) {
-          // Save all stores after insertions
-          for (const store of Object.values(anomalyStores)) {
-            store.save();
-          }
-        }
-
-        // Update position based on anomalies (simple: move towards lower randomness, higher structure)
-        notepad.position.x = notepad.cfg.multiplier;
-        notepad.position.y = notepad.cfg.sizeX;
-
-        // Store runner data for broadcast
-        runnerData.push({
-          id: notepad.id,
-          position: notepad.position,
-          direction: notepad.direction,
-          anomalies,
-        });
-
-        // Save notepad
-        saveNotepad(notepadFile, notepad);
-
-        // Auto-commit instantly after each autorunner run
-        try {
-          const { execSync } = await import('child_process');
-          execSync('git add .', { cwd: BASE_DIR });
-          execSync(`git commit -m "Auto-commit autorunner ${notepad.id} run data"`, { cwd: BASE_DIR });
-          execSync('git push', { cwd: BASE_DIR });
-          console.log(`Auto-committed and pushed autorunner ${notepad.id} data instantly`);
-        } catch (error) {
-          console.error('Git commit/push failed for autorunner:', error);
-        }
-      }
-
-      // Compute collective averages
-      const avgRandomness = allAnomalies.reduce((sum, a) => sum + a.randomness, 0) / allAnomalies.length;
-      const avgStructure = allAnomalies.reduce((sum, a) => sum + a.structure, 0) / allAnomalies.length;
-      const avgReemergence = allAnomalies.reduce((sum, a) => sum + a.reemergence, 0) / allAnomalies.length;
-
-      // Compute group averages and directions
-      const groupAnomalies: { [group: number]: any[] } = { 1: [], 2: [], 3: [] };
-      const groupNotepads: { [group: number]: AutorunnerNotepad[] } = { 1: [], 2: [], 3: [] };
-      for (let i = 0; i < NUM_AUTORUNNERS; i++) {
-        const notepadFile = NOTEPAD_FILES[i];
-        const notepad = loadNotepad(notepadFile);
-        groupAnomalies[notepad.group].push(allAnomalies[i]);
-        groupNotepads[notepad.group].push(notepad);
-      }
-
-      const groupDirections: { [group: number]: { dx: number; dy: number } } = {};
-      for (const group of [1, 2, 3]) {
-        const groupAnoms = groupAnomalies[group];
-        if (groupAnoms.length === 0) continue;
-        const groupAvgRandomness = groupAnoms.reduce((sum, a) => sum + a.randomness, 0) / groupAnoms.length;
-        const groupAvgStructure = groupAnoms.reduce((sum, a) => sum + a.structure, 0) / groupAnoms.length;
-        const groupAvgReemergence = groupAnoms.reduce((sum, a) => sum + a.reemergence, 0) / groupAnoms.length;
-
-        console.log(`Group ${group} averages: randomness=${groupAvgRandomness.toFixed(4)}, structure=${groupAvgStructure.toFixed(4)}, reemergence=${groupAvgReemergence}`);
-
-        let dx = 0;
-        let dy = 0;
-        if (group === 1) {
-          // Group 1: increase on high anomalies
-          if (avgRandomness > 0.5) dx = 0.5; // Increase multiplier
-          if (avgStructure < 0.5) dy = 0.5; // Increase sizeX
-          if (avgReemergence > 100) dy = 0.5; // Increase sizeX
-        } else if (group === 2) {
-          // Group 2: decrease on high anomalies (opposite)
-          if (avgRandomness > 0.5) dx = -0.5; // Decrease multiplier
-          if (avgStructure < 0.5) dy = -0.5; // Decrease sizeX
-          if (avgReemergence > 100) dy = -0.5; // Decrease sizeX
-        } else if (group === 3) {
-          // Group 3: mediate, search between groups
-          // Compute productivity: lower avg anomalies or higher optimality rate
-          const group1Prod = groupAnomalies[1].reduce((sum, a) => sum + a.randomness + a.reemergence - a.structure, 0) / groupAnomalies[1].length;
-          const group2Prod = groupAnomalies[2].reduce((sum, a) => sum + a.randomness + a.reemergence - a.structure, 0) / groupAnomalies[2].length;
-          const betterGroup = group1Prod < group2Prod ? 1 : 2; // Lower score is better (less anomalies)
-          // Search in config ranges between groups
-          const midMultiplier = (groupNotepads[1].reduce((sum, n) => sum + n.cfg.multiplier, 0) / groupNotepads[1].length + groupNotepads[2].reduce((sum, n) => sum + n.cfg.multiplier, 0) / groupNotepads[2].length) / 2;
-          const midSizeX = (groupNotepads[1].reduce((sum, n) => sum + n.cfg.sizeX, 0) / groupNotepads[1].length + groupNotepads[2].reduce((sum, n) => sum + n.cfg.sizeX, 0) / groupNotepads[2].length) / 2;
-          dx = (midMultiplier - groupNotepads[3][0].cfg.multiplier) * 0.1; // Move towards mid
-          dy = (midSizeX - groupNotepads[3][0].cfg.sizeX) * 0.1;
-          // Assign extra autorunner: move one from weaker group to stronger
-          const weakerGroup = betterGroup === 1 ? 2 : 1;
-          if (groupNotepads[weakerGroup].length > 1) {
-            const toMove = groupNotepads[weakerGroup].pop()!;
-            toMove.group = betterGroup;
-            groupNotepads[betterGroup].push(toMove);
-            console.log(`Assigned autorunner ${toMove.id} from group ${weakerGroup} to group ${betterGroup} for imbalance`);
-          }
-        }
-        groupDirections[group] = { dx, dy };
-        console.log(`Group ${group} direction: dx=${dx}, dy=${dy}`);
-      }
-
-      // Apply group-specific direction to each runner and update notepads
-      for (let i = 0; i < NUM_AUTORUNNERS; i++) {
-        const notepadFile = NOTEPAD_FILES[i];
-        let notepad = loadNotepad(notepadFile);
-
-        const groupDir = groupDirections[notepad.group] || { dx: 0, dy: 0 };
-
-        // Apply direction to cfg
-        notepad.cfg.multiplier = Math.max(1, Math.min(20, notepad.cfg.multiplier + groupDir.dx));
-        notepad.cfg.sizeX = Math.max(5, Math.min(15, notepad.cfg.sizeX + groupDir.dy));
-        notepad.cfg.sizeY = notepad.cfg.sizeX; // Keep square for simplicity
-
-        // Recalculate schedule
-        notepad.cfg.inversionSchedule = [
-          { step: Math.floor(notepad.cfg.steps * 0.20), kind: "GEOM" },
-          { step: Math.floor(notepad.cfg.steps * 0.40), kind: "SPHERE" },
-          { step: Math.floor(notepad.cfg.steps * 0.60), kind: "OBSERVER" },
-          { step: Math.floor(notepad.cfg.steps * 0.80), kind: "CAUSAL" },
-        ];
-
-        // Set direction vector
-        notepad.direction = groupDir;
-
-        // Update position
-        notepad.position.x = notepad.cfg.multiplier;
-        notepad.position.y = notepad.cfg.sizeX;
-
-        // Add to trajectory
-        notepad.trajectory.push({ x: notepad.position.x, y: notepad.position.y });
-        if (notepad.trajectory.length > 100) notepad.trajectory.shift(); // Keep last 100
-
-        // Save updated notepad
-        saveNotepad(notepadFile, notepad);
-
-        // Update runnerData with new position/direction
-        runnerData[i].position = notepad.position;
-        runnerData[i].direction = notepad.direction;
-      }
-
-      // Broadcast to browser after each autorunner run
-      for (let i = 0; i < NUM_AUTORUNNERS; i++) {
-        const notepadFile = NOTEPAD_FILES[i];
-        const notepad = loadNotepad(notepadFile);
-        broadcast({
-          type: 'autorunnerUpdate',
-          autorunnerId: notepad.id,
-          position: notepad.position,
-          direction: notepad.direction,
-          anomalies: notepad.anomalies,
-          trajectory: notepad.trajectory,
-        });
-      }
-
-      // Compute collective averages
-      const avgRandomness = allAnomalies.reduce((sum, a) => sum + a.randomness, 0) / allAnomalies.length;
-      const avgStructure = allAnomalies.reduce((sum, a) => sum + a.structure, 0) / allAnomalies.length;
-      const avgReemergence = allAnomalies.reduce((sum, a) => sum + a.reemergence, 0) / allAnomalies.length;
-
-      // Broadcast cycle summary
-      broadcast({
-        type: 'cycleUpdate',
-        cycleCount,
-        runnerData,
-        collectiveAnomalies: { avgRandomness, avgStructure, avgReemergence },
-        topK: {
-          randomness: anomalyStores.randomness.items.slice(0, 10).sort((a, b) => b.anomalies.randomness - a.anomalies.randomness),
-          structure: anomalyStores.structure.items.slice(0, 10).sort((a, b) => b.anomalies.structure - a.anomalies.structure),
-          reemergence: anomalyStores.reemergence.items.slice(0, 10).sort((a, b) => b.anomalies.reemergence - a.anomalies.reemergence)
-        }
-      });
-
-      // Post to blockchain (stub)
-      await postToBlockchain({ cycle: cycleCount, runnerData });
-
-      // Wait a bit before next cycle
-      await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
-    } catch (error) {
-      console.error(`Error in cycle ${cycleCount}:`, error);
-      // Continue to next iteration
-    }
+    await new Promise(resolve => setTimeout(resolve, 10000)); // Check every 10 seconds
   }
 }
 
@@ -643,4 +348,4 @@ const postToBlockchain = async (results: any) => {
 };
 
 // Start the background simulations
-// runBackgroundSimulations().catch(console.error);
+runBackgroundSimulations().catch(console.error);

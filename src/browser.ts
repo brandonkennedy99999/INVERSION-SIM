@@ -531,6 +531,75 @@ function renderAutorunnerMap() {
   }
 }
 
+// New: Render BotFleet on Sphere
+function renderBotSphere() {
+  const canvas = document.getElementById('sphereCanvas') as HTMLCanvasElement;
+  if (!canvas || !botFleet) return;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = 'black';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2;
+  const radius = Math.min(centerX, centerY) - 20;
+
+  // Draw equator (circle of keys)
+  ctx.strokeStyle = 'white';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+  ctx.stroke();
+
+  // Group colors for braided trajectories
+  const groupColors = ['blue', 'red'];
+
+  // Render bot trajectories as braided arcs
+  const bots = botFleet.getBots();
+  bots.forEach((bot: any) => {
+    const state = bot.getGeometricState();
+    const color = groupColors[bot.getGroup()] || 'white';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+
+    // Draw braided trajectory
+    ctx.beginPath();
+    for (let i = 1; i < state.braidedTrajectory.length; i++) {
+      const prev = state.braidedTrajectory[i - 1];
+      const curr = state.braidedTrajectory[i];
+
+      // Project to 2D: theta to x, phi to y (elevation)
+      const prevX = centerX + Math.cos(prev.theta) * radius * Math.cos(prev.phi);
+      const prevY = centerY + Math.sin(prev.theta) * radius * Math.cos(prev.phi) - Math.sin(prev.phi) * radius * 0.5; // Simple projection
+      const currX = centerX + Math.cos(curr.theta) * radius * Math.cos(curr.phi);
+      const currY = centerY + Math.sin(curr.theta) * radius * Math.cos(curr.phi) - Math.sin(curr.phi) * radius * 0.5;
+
+      if (i === 1) ctx.moveTo(prevX, prevY);
+      ctx.lineTo(currX, currY);
+    }
+    ctx.stroke();
+
+    // Draw current position as dot
+    const current = state.braidedTrajectory[state.braidedTrajectory.length - 1];
+    if (current) {
+      const x = centerX + Math.cos(current.theta) * radius * Math.cos(current.phi);
+      const y = centerY + Math.sin(current.theta) * radius * Math.cos(current.phi) - Math.sin(current.phi) * radius * 0.5;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(x, y, 5, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+  });
+
+  // Add labels
+  ctx.fillStyle = 'white';
+  ctx.font = '12px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('Bot Braided Trajectories on Sphere', centerX, canvas.height - 10);
+}
+
 function updateAnomaliesTable(anomalies: any, logEntry: any, topK?: any) {
   if (topK) {
     // Define categories: Structure, Random (Randomness), Robust (Reemergence), Space/Event Density (event_density)
