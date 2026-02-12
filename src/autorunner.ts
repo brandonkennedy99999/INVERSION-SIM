@@ -315,6 +315,7 @@ interface AutorunnerNotepad {
   position: { x: number; y: number }; // x: multiplier, y: sizeX
   direction: { dx: number; dy: number };
   trajectory: { x: number; y: number }[]; // History of positions over cycles
+  group: number; // 1, 2, or 3
 }
 
 const NUM_AUTORUNNERS = 8;
@@ -339,6 +340,8 @@ function initializeNotepad(id: number): AutorunnerNotepad {
     { step: Math.floor(baseCfg.steps * 0.60), kind: "OBSERVER" },
     { step: Math.floor(baseCfg.steps * 0.80), kind: "CAUSAL" },
   ];
+  // Assign groups: 1-3: group 1, 4-7: group 2, 8: group 3
+  const group = id <= 3 ? 1 : id <= 7 ? 2 : 3;
   return {
     id,
     cfg: baseCfg,
@@ -346,6 +349,7 @@ function initializeNotepad(id: number): AutorunnerNotepad {
     position: { x: baseCfg.multiplier, y: baseCfg.sizeX },
     direction: { dx: 0, dy: 0 },
     trajectory: [{ x: baseCfg.multiplier, y: baseCfg.sizeX }],
+    group,
   };
 }
 
@@ -466,21 +470,61 @@ async function runBackgroundSimulations() {
         }
       }
 
-      // Compute collective average anomalies
-      const avgRandomness = allAnomalies.reduce((sum, a) => sum + a.randomness, 0) / NUM_AUTORUNNERS;
-      const avgStructure = allAnomalies.reduce((sum, a) => sum + a.structure, 0) / NUM_AUTORUNNERS;
-      const avgReemergence = allAnomalies.reduce((sum, a) => sum + a.reemergence, 0) / NUM_AUTORUNNERS;
+      // Compute group averages and directions
+      const groupAnomalies: { [group: number]: any[] } = { 1: [], 2: [], 3: [] };
+      const groupNotepads: { [group: number]: AutorunnerNotepad[] } = { 1: [], 2: [], 3: [] };
+      for (let i = 0; i < NUM_AUTORUNNERS; i++) {
+        const notepadFile = NOTEPAD_FILES[i];
+        const notepad = loadNotepad(notepadFile);
+        groupAnomalies[notepad.group].push(allAnomalies[i]);
+        groupNotepads[notepad.group].push(notepad);
+      }
 
-      console.log(`Collective averages: randomness=${avgRandomness.toFixed(4)}, structure=${avgStructure.toFixed(4)}, reemergence=${avgReemergence}`);
+      const groupDirections: { [group: number]: { dx: number; dy: number } } = {};
+      for (const group of [1, 2, 3]) {
+        const groupAnoms = groupAnomalies[group];
+        if (groupAnoms.length === 0) continue;
+        const avgRandomness = groupAnoms.reduce((sum, a) => sum + a.randomness, 0) / groupAnoms.length;
+        const avgStructure = groupAnoms.reduce((sum, a) => sum + a.structure, 0) / groupAnoms.length;
+        const avgReemergence = groupAnoms.reduce((sum, a) => sum + a.reemergence, 0) / groupAnoms.length;
 
-      // Deduce global direction: if high randomness, move towards lower multiplier; if low structure, move towards higher sizeX
-      let globalDx = 0;
-      let globalDy = 0;
-      if (avgRandomness > 0.5) globalDx = -0.5; // Decrease multiplier
-      if (avgStructure < 0.5) globalDy = 0.5; // Increase sizeX
-      if (avgReemergence > 100) globalDy = -0.5; // Decrease sizeX if high reemergence
+        console.log(`Group ${group} averages: randomness=${avgRandomness.toFixed(4)}, structure=${avgStructure.toFixed(4)}, reemergence=${avgReemergence}`);
 
-      console.log(`Global direction: dx=${globalDx}, dy=${globalDy}`);
+        let dx = 0;
+        let dy = 0;
+        if (group === 1) {
+          // Group 1: increase on high anomalies
+          if (avgRandomness > 0.5) dx = 0.5; // Increase multiplier
+          if (avgStructure < 0.5) dy = 0.5; // Increase sizeX
+          if (avgReemergence > 100) dy = 0.5; // Increase sizeX
+        } else if (group === 2) {
+          // Group 2: decrease on high anomalies (opposite)
+          if (avgRandomness > 0.5) dx = -0.5; // Decrease multiplier
+          if (avgStructure < 0.5) dy = -0.5; // Decrease sizeX
+          if (avgReemergence > 100) dy = -0.5; // Decrease sizeX
+        } else if (group === 3) {
+          // Group 3: mediate, search between groups
+          // Compute productivity: lower avg anomalies or higher optimality rate
+          const group1Prod = groupAnomalies[1].reduce((sum, a) => sum + a.randomness + a.reemergence - a.structure, 0) / groupAnomalies[1].length;
+          const group2Prod = groupAnomalies[2].reduce((sum, a) => sum + a.randomness + a.reemergence - a.structure, 0) / groupAnomalies[2].length;
+          const betterGroup = group1Prod < group2Prod ? 1 : 2; // Lower score is better (less anomalies)
+          // Search in config ranges between groups
+          const midMultiplier = (groupNotepads[1].reduce((sum, n) => sum + n.cfg.multiplier, 0) / groupNotepads[1].length + groupNotepads[2].reduce((sum, n) => sum + n.cfg.multiplier, 0) / groupNotepads[2].length) / 2;
+          const midSizeX = (groupNotepads[1].reduce((sum, n) => sum + n.cfg.sizeX, 0) / groupNotepads[1].length + groupNotepads[2].reduce((sum, n) => sum + n.cfg.sizeX, 0) / groupNotepads[2].length) / 2;
+          dx = (midMultiplier - groupNotepads[3][0].cfg.multiplier) * 0.1; // Move towards mid
+          dy = (midSizeX - groupNotepads[3][0].cfg.sizeX) * 0.1;
+          // Assign extra autorunner: move one from weaker group to stronger
+          const weakerGroup = betterGroup === 1 ? 2 : 1;
+          if (groupNotepads[weakerGroup].length > 1) {
+            const toMove = groupNotepads[weakerGroup].pop()!;
+            toMove.group = betterGroup;
+            groupNotepads[betterGroup].push(toMove);
+            console.log(`Assigned autorunner ${toMove.id} from group ${weakerGroup} to group ${betterGroup} for imbalance`);
+          }
+        }
+        groupDirections[group] = { dx, dy };
+        console.log(`Group ${group} direction: dx=${dx}, dy=${dy}`);
+      }
 
       // Apply global direction to each runner and update notepads
       for (let i = 0; i < NUM_AUTORUNNERS; i++) {

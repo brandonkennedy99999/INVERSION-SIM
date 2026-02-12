@@ -9,13 +9,6 @@ import type { RunConfig, InversionKind } from './types.js';
 import BotFleet from './botFleet.js';
 import * as THREE from 'three';
 
-let currentRenderer: TopologyRenderer | ThreeDRenderer | AbstractRenderer | null = null;
-let topologyRenderer: TopologyRenderer | null = null;
-let currentResult: any = null;
-let currentCfg: RunConfig;
-let currentVariant = MirrorInversion;
-let botFleet: BotFleet | null = null;
-let ws: WebSocket | null = null;
 
 class ThreeDRenderer {
   private scene: THREE.Scene;
