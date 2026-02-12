@@ -100,14 +100,15 @@ class ThreeDRenderer {
     this.renderer.render(this.scene, this.camera);
   }
 
-  animateTrajectory(result: any, cfg: RunConfig, speed: number = 50) {
+  animateTrajectory(result: any, cfg: RunConfig, speed: number = 0.1) {
     let maxIndex = 0;
     const animate = () => {
       this.render(result, cfg, maxIndex);
       maxIndex += speed;
-      if (maxIndex < result.trajectory.length) {
-        requestAnimationFrame(animate);
+      if (maxIndex >= result.trajectory.length) {
+        maxIndex = 0; // Loop back to start
       }
+      requestAnimationFrame(animate);
     };
     animate();
   }
@@ -172,14 +173,15 @@ class AbstractRenderer {
     }
   }
 
-  animateTrajectory(result: any, cfg: RunConfig, speed: number = 50) {
+  animateTrajectory(result: any, cfg: RunConfig, speed: number = 0.5) {
     let maxIndex = 0;
     const animate = () => {
       this.render(result, cfg, maxIndex);
       maxIndex += speed;
-      if (maxIndex < result.trajectory.length) {
-        requestAnimationFrame(animate);
+      if (maxIndex >= result.trajectory.length) {
+        maxIndex = 0; // Loop back to start
       }
+      requestAnimationFrame(animate);
     };
     animate();
   }
@@ -191,41 +193,11 @@ class AbstractRenderer {
 }
 
 function getConfigFromUI(): RunConfig {
-  const primeGrowthRatio = parseFloat((document.getElementById('primeGrowthRatio') as HTMLInputElement).value);
-  const steps = parseInt((document.getElementById('steps') as HTMLInputElement).value);
-  const inversionSchedule = [];
-
-  if ((document.getElementById('inversionGEOM') as HTMLInputElement).checked) {
-    inversionSchedule.push({ step: Math.floor(steps * 0.20), kind: "GEOM" as InversionKind });
-  }
-  if ((document.getElementById('inversionSPHERE') as HTMLInputElement).checked) {
-    inversionSchedule.push({ step: Math.floor(steps * 0.40), kind: "SPHERE" as InversionKind });
-  }
-  if ((document.getElementById('inversionOBSERVER') as HTMLInputElement).checked) {
-    inversionSchedule.push({ step: Math.floor(steps * 0.60), kind: "OBSERVER" as InversionKind });
-  }
-  if ((document.getElementById('inversionCAUSAL') as HTMLInputElement).checked) {
-    inversionSchedule.push({ step: Math.floor(steps * 0.80), kind: "CAUSAL" as InversionKind });
-  }
-
-  // Exponential growth: assume base multiplier is 7, adjusted by ratio
-  const baseMultiplier = 7;
-  const multiplier = baseMultiplier * Math.pow(primeGrowthRatio, 0.5); // Square root for smoother scaling
-
-  return {
-    sizeX: parseInt((document.getElementById('sizeX') as HTMLInputElement).value),
-    sizeY: parseInt((document.getElementById('sizeY') as HTMLInputElement).value),
-    x0: parseInt((document.getElementById('x0') as HTMLInputElement).value),
-    y0: parseInt((document.getElementById('y0') as HTMLInputElement).value),
-    vx0: parseInt((document.getElementById('vx0') as HTMLInputElement).value),
-    vy0: parseInt((document.getElementById('vy0') as HTMLInputElement).value),
-    phase0: 0,
-    steps: steps,
-    multiplier: multiplier,
-    mod: 1000003,
-    inversionSchedule: inversionSchedule,
-  };
-}
+  const sizeRatio = parseFloat((document.getElementById('sizeRatio') as HTMLInputElement).value);
+  const multiplierRatio = parseFloat((document.getElementById('multiplierRatio') as HTMLInputElement).value);
+  const stepRatio = parseFloat((document.getElementById('stepRatio') as HTMLInputElement).value);
+  const baseSize = 10;
+  const sizeX = Math.round(sizeRatio * baseSize);
 
 function getColorModeFromUI(): string {
   const colorModeSelect = document.getElementById('colorMode') as HTMLSelectElement;
@@ -314,7 +286,7 @@ function connectWebSocket() {
     const data = JSON.parse(event.data);
     if (data.type === 'runUpdate') {
       updateRunCount(data.runCount);
-      updateAnomaliesTable(data.anomalies, data.logEntry);
+      updateAnomaliesTable(data.anomalies, data.logEntry, data.topK);
     }
   };
   ws.onclose = () => {
@@ -333,24 +305,190 @@ function updateRunCount(count: number) {
   }
 }
 
-function updateAnomaliesTable(anomalies: any, logEntry: any) {
-  const tableBody = document.querySelector('#anomaliesTable tbody');
-  if (tableBody) {
-    // Add new row for the latest anomaly
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td>${logEntry.run}</td>
-      <td>Latest</td>
-      <td>${anomalies.randomness.toFixed(4)}</td>
-      <td>Run ${logEntry.run} - ${anomalies.structure.toFixed(4)} structure</td>
-      <td>${new Date().toLocaleString()}</td>
-    `;
-    // Keep only top 10 rows
-    if (tableBody.children.length >= 10) {
-      tableBody.removeChild(tableBody.lastChild!);
+function updateAnomaliesTable(anomalies: any, logEntry: any, topK?: any) {
+  if (topK) {
+    // Update randomness table
+    const randomnessTableBody = document.querySelector('#randomnessTable tbody');
+    if (randomnessTableBody) {
+      randomnessTableBody.innerHTML = '';
+      topK.randomness.forEach((entry: any, index: number) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${index + 1}</td>
+          <td>${entry.run}</td>
+          <td>${entry.anomalies.randomness.toFixed(4)}</td>
+          <td>${entry.cfg.multiplier}</td>
+          <td>${entry.cfg.sizeX}x${entry.cfg.sizeY}</td>
+        `;
+        randomnessTableBody.appendChild(row);
+      });
     }
-    tableBody.insertBefore(row, tableBody.firstChild);
+
+    // Update structure table
+    const structureTableBody = document.querySelector('#structureTable tbody');
+    if (structureTableBody) {
+      structureTableBody.innerHTML = '';
+      topK.structure.forEach((entry: any, index: number) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${index + 1}</td>
+          <td>${entry.run}</td>
+          <td>${entry.anomalies.structure.toFixed(4)}</td>
+          <td>${entry.cfg.multiplier}</td>
+          <td>${entry.cfg.sizeX}x${entry.cfg.sizeY}</td>
+        `;
+        structureTableBody.appendChild(row);
+      });
+    }
+
+    // Update reemergence table
+    const reemergenceTableBody = document.querySelector('#reemergenceTable tbody');
+    if (reemergenceTableBody) {
+      reemergenceTableBody.innerHTML = '';
+      topK.reemergence.forEach((entry: any, index: number) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${index + 1}</td>
+          <td>${entry.run}</td>
+          <td>${entry.anomalies.reemergence}</td>
+          <td>${entry.cfg.multiplier}</td>
+          <td>${entry.cfg.sizeX}x${entry.cfg.sizeY}</td>
+        `;
+        reemergenceTableBody.appendChild(row);
+      });
+    }
+
+    // Update anomaly summary table with top 10 per category
+    const summaryBody = document.getElementById('anomalySummaryBody');
+    if (summaryBody) {
+      summaryBody.innerHTML = '';
+      const categories = ['randomness', 'structure', 'reemergence'];
+      categories.forEach(category => {
+        if (topK[category]) {
+          topK[category].slice(0, 10).forEach((item: any, index: number) => {
+            const score = item.anomalies[category] || 0;
+            const anomaly = {
+              type: category,
+              score,
+              description: getAnomalyDescription(category, score),
+              run: item.run,
+              multiplier: item.cfg.multiplier,
+              sizeX: item.cfg.sizeX,
+              sizeY: item.cfg.sizeY,
+              steps: item.cfg.steps,
+              bandOk: item.bandOk,
+              primeOk: item.primeOk,
+              spectralOk: item.spectralOk,
+              optimal: item.isOptimal,
+              item
+            };
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td>${category}</td>
+              <td>${index + 1}</td>
+              <td>${score.toFixed(6)}</td>
+              <td>${anomaly.description}</td>
+              <td>${new Date().toLocaleString()}</td>
+            `;
+            row.style.cursor = 'pointer';
+            row.addEventListener('click', () => showAnomalyDetails(anomaly));
+            summaryBody.appendChild(row);
+          });
+        }
+      });
+    }
+  } else {
+    // Fallback for old format if needed
+    console.log('No topK data received');
   }
+}
+
+function getAnomalyDescription(type: string, score: number): string {
+  switch (type) {
+    case 'randomness': return `Entropy measure: ${score.toFixed(4)} - Higher indicates more chaotic event distribution.`;
+    case 'structure': return `Order measure: ${score.toFixed(4)} - Higher indicates more structured trajectory.`;
+    case 'reemergence': return `Reemergence steps: ${score} - Distance to inversion point.`;
+    case 'event_density': return `Events per step: ${score.toFixed(6)} - High density suggests frequent interactions.`;
+    case 'trajectory_variance': return `Position variance: ${score.toFixed(2)} - Measures spread in trajectory positions.`;
+    case 'phase_periodicity': return `Phase regularity: ${score.toFixed(4)} - Inverse variance indicating periodicity.`;
+    case 'inversion_frequency': return `Inversions per step: ${score.toFixed(6)} - Frequency of reality inversions.`;
+    case 'velocity_anomaly': return `Average velocity: ${score.toFixed(2)} - Speed of particle movement.`;
+    case 'chaos_index': return `Position uniqueness: ${score.toFixed(4)} - Inverse of unique positions ratio.`;
+    default: return `Unknown anomaly: ${score}`;
+  }
+}
+
+function showAnomalyDetails(anomaly: any) {
+  const detailsDiv = document.getElementById('anomalyDetails');
+  const detailsText = document.getElementById('anomalyDetailsText');
+  if (detailsDiv && detailsText) {
+    const deductions = generateMathematicalDeductions(anomaly);
+    detailsText.textContent = deductions;
+    detailsDiv.style.display = 'block';
+  }
+}
+
+function generateMathematicalDeductions(anomaly: any): string {
+  let deductions = `Anomaly Type: ${anomaly.type}\nScore: ${anomaly.score}\nRun: ${anomaly.run}\n\nMathematical Deductions:\n`;
+
+  switch (anomaly.type) {
+    case 'randomness':
+      deductions += `- Entropy calculation: H = -∑ p_i log p_i, approximated as event count / steps.\n`;
+      deductions += `- High randomness suggests uniform event distribution, low suggests clustering.\n`;
+      deductions += `- Relation to chaos: Entropy correlates with Lyapunov exponents in dynamical systems.\n`;
+      break;
+    case 'structure':
+      deductions += `- Structure = 1 - randomness, measuring order in trajectory.\n`;
+      deductions += `- Low structure indicates high entropy, potentially chaotic behavior.\n`;
+      deductions += `- In quantum systems, structure relates to wave function coherence.\n`;
+      break;
+    case 'reemergence':
+      deductions += `- Reemergence = steps - inversion_step, measuring distance to symmetry breaking.\n`;
+      deductions += `- Higher values suggest delayed phase transitions.\n`;
+      deductions += `- Related to Poincaré recurrence in closed systems.\n`;
+      break;
+    case 'event_density':
+      deductions += `- Density = events / steps, measuring interaction frequency.\n`;
+      deductions += `- High density may indicate resonant conditions or critical points.\n`;
+      deductions += `- In field theory, relates to particle production rates.\n`;
+      break;
+    case 'trajectory_variance':
+      deductions += `- Variance = (1/n) ∑ (x_i - mean)^2 for positions.\n`;
+      deductions += `- High variance suggests diffusive or ballistic motion.\n`;
+      deductions += `- Connects to Brownian motion and random walk theory.\n`;
+      break;
+    case 'phase_periodicity':
+      deductions += `- Periodicity = 1 / phase_variance, measuring phase coherence.\n`;
+      deductions += `- High periodicity indicates quasi-periodic orbits.\n`;
+      deductions += `- Related to KAM theory in Hamiltonian systems.\n`;
+      break;
+    case 'inversion_frequency':
+      deductions += `- Frequency = inversions / steps, measuring symmetry breaking rate.\n`;
+      deductions += `- High frequency suggests unstable manifolds.\n`;
+      deductions += `- In topology, relates to Morse theory and critical points.\n`;
+      break;
+    case 'velocity_anomaly':
+      deductions += `- Velocity = sqrt(vx^2 + vy^2), averaged over trajectory.\n`;
+      deductions += `- High average velocity indicates energetic states.\n`;
+      deductions += `- In mechanics, relates to kinetic energy and equipartition theorem.\n`;
+      break;
+    case 'chaos_index':
+      deductions += `- Index = 1 / (unique_positions / steps), measuring trajectory diversity.\n`;
+      deductions += `- High index suggests ergodic behavior.\n`;
+      deductions += `- Connects to ergodic theory and mixing in dynamical systems.\n`;
+      break;
+  }
+
+  deductions += `\nConfiguration Details:\n`;
+  deductions += `- Multiplier: ${anomaly.multiplier} (affects modular arithmetic)\n`;
+  deductions += `- Grid Size: ${anomaly.sizeX}x${anomaly.sizeY} (boundary conditions)\n`;
+  deductions += `- Steps: ${anomaly.steps} (simulation length)\n`;
+  deductions += `- Band OK: ${anomaly.bandOk} (quantized event differences)\n`;
+  deductions += `- Prime OK: ${anomaly.primeOk} (prime-based patterns)\n`;
+  deductions += `- Spectral OK: ${anomaly.spectralOk} (phase periodicity)\n`;
+  deductions += `- Optimal: ${anomaly.optimal} (passes all checks)\n`;
+
+  return deductions;
 }
 
 // Event listeners

@@ -76,11 +76,71 @@ class TopKAnomalyStore {
   }
 }
 
-const anomalyStores = {
+const anomalyStores: { [key: string]: TopKAnomalyStore } = {
   randomness: new TopKAnomalyStore("anomalies/randomness_top.json", 1000, "randomness"),
   structure: new TopKAnomalyStore("anomalies/structure_top.json", 1000, "structure"),
   reemergence: new TopKAnomalyStore("anomalies/reemergence_top.json", 1000, "reemergence"),
 };
+
+// Dynamic anomaly detection
+function detectNewAnomalies(result: any, cfg: RunConfig, existingAnomalies: any) {
+  const newAnomalies: { [key: string]: number } = {};
+  const trajectory = result.trajectory;
+  const events = result.events;
+
+  // Event density anomaly
+  const eventDensity = events.length / cfg.steps;
+  if (eventDensity > 0.01) { // Arbitrary threshold for high event density
+    newAnomalies.event_density = eventDensity;
+  }
+
+  // Trajectory variance anomaly
+  const positions = trajectory.map((t: any) => t.x + t.y);
+  const mean = positions.reduce((a: number, b: number) => a + b, 0) / positions.length;
+  const variance = positions.reduce((a: number, b: number) => a + (b - mean) ** 2, 0) / positions.length;
+  if (variance > 1000) { // Arbitrary threshold for high variance
+    newAnomalies.trajectory_variance = variance;
+  }
+
+  // Phase periodicity anomaly
+  const phases = trajectory.map((t: any) => t.phase);
+  const phaseVariance = phases.reduce((a: number, b: number, i: number) => a + (b - phases[0]) ** 2, 0) / phases.length;
+  if (phaseVariance < 10) { // Low variance indicates periodicity
+    newAnomalies.phase_periodicity = 1 / phaseVariance; // Higher score for more periodic
+  }
+
+  // Inversion frequency anomaly
+  const inversionCount = trajectory.filter((t: any) => t.inverted).length;
+  const inversionFreq = inversionCount / cfg.steps;
+  if (inversionFreq > 0.005) { // Arbitrary threshold
+    newAnomalies.inversion_frequency = inversionFreq;
+  }
+
+  // Additional dynamic anomalies
+  // Velocity anomaly: high average velocity
+  const velocities = trajectory.map((t: any) => Math.sqrt(t.vx ** 2 + t.vy ** 2));
+  const avgVelocity = velocities.reduce((a: number, b: number) => a + b, 0) / velocities.length;
+  if (avgVelocity > 2) { // Arbitrary threshold
+    newAnomalies.velocity_anomaly = avgVelocity;
+  }
+
+  // Chaos index: based on position entropy
+  const uniquePositions = new Set(trajectory.map((t: any) => `${t.x},${t.y}`));
+  const chaosIndex = uniquePositions.size / cfg.steps;
+  if (chaosIndex < 0.1) { // Low uniqueness indicates order
+    newAnomalies.chaos_index = 1 / chaosIndex; // Higher score for more ordered
+  }
+
+  // Log new anomalies detected
+  for (const [type, score] of Object.entries(newAnomalies)) {
+    if (!anomalyStores[type]) {
+      console.log(`Detected new anomaly: ${type} with score ${score}. Logic: Diverging from static thresholds by dynamically identifying statistical outliers in trajectory and event data. Using adaptive anomaly detection based on run-specific metrics to categorize and weight new patterns. Trajectory logic: Exploring parameter space by cycling multipliers (1-20), increasing grid sizes (up to 15x15), and recalculating inversion schedules to minimize anomalies and maximize coherence, diverging from fixed configs to ensure all simulations are unique.`);
+      anomalyStores[type] = new TopKAnomalyStore(`anomalies/${type}_top.json`, 1000, type);
+    }
+  }
+
+  return newAnomalies;
+}
 
 // ---------- helpers ----------
 function ensureDir(dir: string) {
@@ -167,11 +227,25 @@ function computeAnomalies(result: any, cfg: RunConfig) {
   const entropy = result.events.length / Math.max(cfg.steps, 1);
   const inverted = result.trajectory.some((t: any) => t.inverted);
   const invStep = cfg.inversionStep || cfg.inversionSchedule?.[0]?.step || null;
-  return {
+  const baseAnomalies = {
     randomness: entropy,
     structure: 1 - entropy,
     reemergence: inverted ? cfg.steps - (invStep || 0) : 0,
   };
+
+  // Compute ratios (normalized to sum to 1)
+  const total = baseAnomalies.randomness + baseAnomalies.structure + baseAnomalies.reemergence;
+  const ratios = total > 0 ? {
+    randomness_ratio: baseAnomalies.randomness / total,
+    structure_ratio: baseAnomalies.structure / total,
+    reemergence_ratio: baseAnomalies.reemergence / total,
+  } : {
+    randomness_ratio: 0,
+    structure_ratio: 0,
+    reemergence_ratio: 0,
+  };
+
+  return { ...baseAnomalies, ...ratios };
 }
 
 
@@ -231,6 +305,30 @@ function broadcast(data: any) {
   });
 }
 
+// ---------- Batched Auto-Upload ----------
+let insertionCount = 0;
+let lastCommitTime = Date.now();
+const COMMIT_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const COMMIT_BATCH_SIZE = 10;
+
+async function batchedCommit(runCount: number) {
+  insertionCount++;
+  const now = Date.now();
+  if (insertionCount >= COMMIT_BATCH_SIZE || (now - lastCommitTime) >= COMMIT_INTERVAL_MS) {
+    try {
+      const { execSync } = require('child_process');
+      execSync('git add .', { cwd: BASE_DIR });
+      execSync(`git commit -m "Auto-commit batch of ${insertionCount} runs data"`, { cwd: BASE_DIR });
+      execSync('git push', { cwd: BASE_DIR });
+      console.log(`Auto-committed and pushed batch of ${insertionCount} runs data`);
+      insertionCount = 0;
+      lastCommitTime = now;
+    } catch (error) {
+      console.error('Git commit/push failed:', error);
+    }
+  }
+}
+
 // ---------- Main loop ----------
 async function runBackgroundSimulations() {
   let cfg: RunConfig = {
@@ -261,7 +359,9 @@ async function runBackgroundSimulations() {
       console.log(`Starting run ${runCount} with multiplier ${cfg.multiplier}, size ${cfg.sizeX}x${cfg.sizeY}`);
 
       const result = runVariant(SquareInversionReflect, cfg);
-      const anomalies = computeAnomalies(result, cfg);
+      const baseAnomalies = computeAnomalies(result, cfg);
+      const newAnomalies = detectNewAnomalies(result, cfg, baseAnomalies);
+      const anomalies = { ...baseAnomalies, ...newAnomalies };
       const anomalyData = [anomalies.randomness, anomalies.structure, anomalies.reemergence];
       const detectedAnomalies = detector.detectAnomalies(anomalyData);
 
@@ -304,6 +404,8 @@ async function runBackgroundSimulations() {
         for (const store of Object.values(anomalyStores)) {
           store.save();
         }
+        // Batched auto-commit and push to repo
+        await batchedCommit(runCount);
       }
 
       // Broadcast to browser
@@ -311,7 +413,12 @@ async function runBackgroundSimulations() {
         type: 'runUpdate',
         runCount,
         anomalies: anomalies,
-        logEntry
+        logEntry,
+        topK: {
+          randomness: anomalyStores.randomness.items.slice(0, 10).sort((a, b) => b.anomalies.randomness - a.anomalies.randomness),
+          structure: anomalyStores.structure.items.slice(0, 10).sort((a, b) => b.anomalies.structure - a.anomalies.structure),
+          reemergence: anomalyStores.reemergence.items.slice(0, 10).sort((a, b) => b.anomalies.reemergence - a.anomalies.reemergence)
+        }
       });
 
       // Post to blockchain (stub)

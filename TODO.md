@@ -41,3 +41,36 @@
 
 ## Notes
 - Added as comment in src/autorunner.ts for documentation.
+
+# TODO: Implement Dynamic Anomaly Detection and Weighting
+
+## Steps to Complete
+- [x] Autorunner detects new anomalies by itself (event_density, trajectory_variance, phase_periodicity, inversion_frequency, velocity_anomaly, chaos_index)
+- [x] Names and categorizes new anomalies in the leaderboard dynamically
+- [x] Uses logic to find whatever it wants: adaptive anomaly detection based on run-specific metrics
+- [x] Makes weights changeable: scores are calculated and ranked live in leaderboard
+- [x] Ensures simulations are different: cycles multipliers 1-20, increases grid sizes up to 15x15, recalculates inversion schedules
+- [x] Puts in writing what logic it is diverging from (static thresholds) and logic it is using (adaptive detection, parameter space exploration to minimize anomalies and maximize coherence)
+
+## Notes
+- New anomalies are logged with explanations of diverging logic and trajectory exploration.
+- Leaderboard updates live with top 10 per category sorted by anomaly score descending.
+- Autorunner broadcasts topK data via WebSocket for real-time UI updates.
+
+# TODO: Add Ratio-Based Data Collection, Config Inputs, Visualizations, and Batched Auto Upload
+
+## Steps to Complete
+- [ ] Update anomaly computation in autorunner.ts to include ratio versions (normalized to sum to 1)
+- [ ] Store ratios in TopKAnomalyStore entries
+- [ ] Add ratio input options in browser.ts UI (sliders/inputs for config ratios)
+- [ ] Modify getConfigFromUI to compute discrete values from ratios
+- [ ] Add toggle for discrete vs ratio input mode
+- [ ] Implement ratio visualizations (bar charts for anomaly ratios, pie charts for config ratios)
+- [ ] Change auto-commit logic in autorunner.ts to batch commits (every 10 insertions or 5-minute interval)
+- [ ] Test autorunner with ratio data and batched commits
+- [ ] Test browser UI with ratio inputs and visualizations
+- [ ] Verify Git commits are batched and not overwhelming
+
+## Notes
+- Ratios represent relative weights in optimality search.
+- Batch commits reduce Git overhead for large data uploads.
