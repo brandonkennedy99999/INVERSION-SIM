@@ -7,9 +7,9 @@
 - [x] Create shared types for simulation data
 
 ## Phase 2: Create Simulation Classes
-- [ ] Create ParticleSimulation.ts - Handles dimension navigation, trajectory generation
-- [ ] Create CoordinationMap.ts - Handles nonlocal coordination visualization
-- [ ] Create simulation interfaces and data transformers
+- [x] Create ParticleSimulation.ts - Handles dimension navigation, trajectory generation
+- [x] Create CoordinationMap.ts - Handles nonlocal coordination visualization
+- [x] Create simulation interfaces and data transformers
 
 ## Phase 3: Refactor Existing Code
 - [ ] Refactor botFleet.ts to use ParticleSimulation
