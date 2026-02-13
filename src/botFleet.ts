@@ -9,6 +9,72 @@ import { BlockchainManager } from './blockchain.js';
 import type { RunConfig, InversionKind } from './types.js';
 import fs from 'node:fs';
 
+// ============ PHASE 1: Coprime Coordination Layer Interfaces ============
+
+interface CoprimeMetrics {
+  resonance: number;        // Connectivity - how connected to other bots (0-1)
+  irreducibility: number;  // Independence - how unique/distinct (0-1)
+  harmonicCoupling: Map<number, number>;  // Weak shared signals between bots
+  phaseDiversity: number;  // Phase diversity across fleet (0-1)
+  entropy: number;         // Coordination entropy measure
+}
+
+// ============ PHASE 2: Second-Order Regulation Interfaces ============
+
+interface LearningStrategy {
+  name: string;
+  adaptationRate: number;
+  successHistory: number[];
+}
+
+interface MetaFeedback {
+  strategy: LearningStrategy;
+  effectiveness: number;
+  recommendations: string[];
+}
+
+interface ConstraintEvolution {
+  originalConstraints: string[];
+  evolvedConstraints: string[];
+  adaptationScore: number;
+  patternDetected: string;
+}
+
+// ============ PHASE 3: Geometric Topology Mapping Interfaces ============
+
+interface TopologyPosition {
+  resonance: number;  // Horizontal axis (0-1)
+  irreducibility: number; // Vertical axis (0-1)
+  time: number;       // Temporal dimension
+}
+
+interface TopologyHistory {
+  positions: TopologyPosition[];
+  emergenceScore: number;
+}
+
+// ========== PHASE 4: Enhanced Stuckness Detection Interfaces ==========
+
+interface StucknessState {
+  isStuck: boolean;
+  type: 'cycling' | 'local_minima' | 'none';
+  detectedAt: number;
+  cyclePatterns: string[];
+  redirectStrategy: 'none' | 'backup' | 'strip_complexity' | 'invert' | 'perturb' | 'expose_assumptions';
+}
+
+// ============ PHASE 5: Spectral Analysis Interfaces ============
+
+interface SpectralData {
+  frequencies: number[];
+  magnitudes: number[];
+  dominantFrequency: number;
+  harmonics: number[];
+  periodicityScore: number;
+}
+
+// =========================================================================
+
 interface ConstraintFeedback {
   valid: boolean;
   message: string;
@@ -39,6 +105,56 @@ class Bot {
   private stuckCounter: number = 0;
   private colPhase: 'seeding' | 'exploration' | 'stuckness' | 'emergence' | 'stabilization' = 'seeding';
 
+  // ============ PHASE 1: Coprime Coordination Properties ============
+  private coprimeMetrics: CoprimeMetrics = {
+    resonance: 0.5,
+    irreducibility: 0.5,
+    harmonicCoupling: new Map<number, number>(),
+    phaseDiversity: 0.5,
+    entropy: 0.5
+  };
+
+  // ============ PHASE 2: Second-Order Regulation Properties ============
+  private learningStrategy: LearningStrategy = {
+    name: 'adaptive',
+    adaptationRate: 0.1,
+    successHistory: []
+  };
+  private metaFeedbackHistory: MetaFeedback[] = [];
+  private constraintEvolution: ConstraintEvolution | null = null;
+
+  // ============ PHASE 3: Geometric Topology Properties ============
+  private topologyPosition: TopologyPosition = {
+    resonance: 0.5,
+    irreducibility: 0.5,
+    time: 0
+  };
+  private topologyHistory: TopologyHistory = {
+    positions: [],
+    emergenceScore: 0
+  };
+
+  // ============ PHASE 4: Enhanced Stuckness Properties ============
+  private stucknessState: StucknessState = {
+    isStuck: false,
+    type: 'none',
+    detectedAt: 0,
+    cyclePatterns: [],
+    redirectStrategy: 'none'
+  };
+  private configHistory: RunConfig[] = [];
+  private phaseDiversityScore: number = 0;
+
+  // ============ PHASE 5: Spectral Analysis Properties ============
+  private spectralData: SpectralData = {
+    frequencies: [],
+    magnitudes: [],
+    dominantFrequency: 0,
+    harmonics: [],
+    periodicityScore: 0
+  };
+  private behaviorSequence: number[] = [];
+
   constructor(id: number, group: number) {
     this.id = id;
     this.group = group;
@@ -49,6 +165,369 @@ class Bot {
       phi: 0, // Start on equator
       braidedTrajectory: []
     };
+  }
+
+  // ============ PHASE 1: Coprime Coordination Methods ============
+  
+  // Update coprime metrics based on bot's current state and other bots
+  updateCoprimeMetrics(otherBots: Bot[]): void {
+    // Calculate resonance (connectivity) - how many other bots have similar behavior
+    let similarCount = 0;
+    for (const other of otherBots) {
+      if (other.getId() !== this.id) {
+        const otherState = other.getGeometricState();
+        const thetaDiff = Math.abs(this.geometricState.theta - otherState.theta);
+        const phiDiff = Math.abs(this.geometricState.phi - otherState.phi);
+        if (thetaDiff < 0.5 && phiDiff < 0.3) {
+          similarCount++;
+          // Add harmonic coupling
+          const currentCoupling = this.coprimeMetrics.harmonicCoupling.get(other.getId()) || 0;
+          this.coprimeMetrics.harmonicCoupling.set(other.getId(), currentCoupling + 0.1);
+        }
+      }
+    }
+    this.coprimeMetrics.resonance = similarCount / Math.max(1, otherBots.length - 1);
+    
+    // Calculate irreducibility (independence) - inverse of resonance
+    this.coprimeMetrics.irreducibility = 1 - this.coprimeMetrics.resonance;
+    
+    // Calculate entropy measure
+    let couplingSum = 0;
+    let couplingCount = 0;
+    for (const [, coupling] of this.coprimeMetrics.harmonicCoupling) {
+      couplingSum += coupling;
+      couplingCount++;
+    }
+    const avgCoupling = couplingCount > 0 ? couplingSum / couplingCount : 0;
+    this.coprimeMetrics.entropy = avgCoupling > 0.5 ? avgCoupling : 1 - avgCoupling;
+  }
+
+  // Update phase diversity across fleet
+  updatePhaseDiversity(otherBots: Bot[]): void {
+    const phases = otherBots.map(b => b.getGeometricState().theta);
+    const uniquePhases = new Set(phases.map(p => Math.floor(p / (Math.PI / 4)))); // Bucket into 8 sectors
+    this.coprimeMetrics.phaseDiversity = uniquePhases.size / 8;
+  }
+
+  getCoprimeMetrics(): CoprimeMetrics {
+    return this.coprimeMetrics;
+  }
+
+  // ============ PHASE 2: Second-Order Regulation Methods ============
+
+  // Adapt learning strategy based on success
+  adaptLearningStrategy(success: boolean): void {
+    this.learningStrategy.successHistory.push(success ? 1 : 0);
+    if (this.learningStrategy.successHistory.length > 20) {
+      this.learningStrategy.successHistory.shift();
+    }
+    
+    // Calculate effectiveness
+    const recentSuccess = this.learningStrategy.successHistory.slice(-10);
+    const successRate = recentSuccess.reduce((a, b) => a + b, 0) / recentSuccess.length;
+    
+    // Adapt rate based on success
+    if (successRate > 0.7) {
+      this.learningStrategy.adaptationRate = Math.min(0.5, this.learningStrategy.adaptationRate * 1.1);
+    } else if (successRate < 0.3) {
+      this.learningStrategy.adaptationRate = Math.max(0.01, this.learningStrategy.adaptationRate * 0.9);
+    }
+  }
+
+  // Generate meta-feedback about learning
+  generateMetaFeedback(): MetaFeedback {
+    const recentSuccess = this.learningStrategy.successHistory.slice(-10);
+    const effectiveness = recentSuccess.length > 0 
+      ? recentSuccess.reduce((a, b) => a + b, 0) / recentSuccess.length 
+      : 0.5;
+    
+    const recommendations: string[] = [];
+    if (effectiveness < 0.3) {
+      recommendations.push("Increase exploration");
+      recommendations.push("Reduce constraint strictness");
+    } else if (effectiveness > 0.7) {
+      recommendations.push("Focus on refinement");
+      recommendations.push("Increase constraint complexity");
+    } else {
+      recommendations.push("Maintain current balance");
+    }
+
+    const metaFeedback: MetaFeedback = {
+      strategy: this.learningStrategy,
+      effectiveness,
+      recommendations
+    };
+    
+    this.metaFeedbackHistory.push(metaFeedback);
+    return metaFeedback;
+  }
+
+  // Evolve constraints based on patterns
+  evolveConstraints(patterns: string[]): void {
+    if (patterns.length === 0) return;
+    
+    const evolved = [...this.constraints];
+    for (const pattern of patterns) {
+      if (pattern.includes('phase') && !evolved.some(c => c.includes('phase'))) {
+        evolved.push("Phase transitions must be smooth");
+      }
+      if (pattern.includes('trajectory') && !evolved.some(c => c.includes('trajectory'))) {
+        evolved.push("Trajectory complexity should vary");
+      }
+    }
+    
+    this.constraintEvolution = {
+      originalConstraints: this.constraints,
+      evolvedConstraints: evolved,
+      adaptationScore: evolved.length / this.constraints.length,
+      patternDetected: patterns.join(', ')
+    };
+    
+    this.constraints = evolved;
+  }
+
+  getLearningStrategy(): LearningStrategy {
+    return this.learningStrategy;
+  }
+
+  getConstraintEvolution(): ConstraintEvolution | null {
+    return this.constraintEvolution;
+  }
+
+  // ============ PHASE 3: Geometric Topology Methods ============
+
+  // Update topology position based on behavior
+  updateTopologyPosition(success: boolean): void {
+    // Resonance axis (horizontal) - based on connectivity
+    const deltaResonance = success ? 0.1 : -0.1;
+    this.topologyPosition.resonance = Math.max(0, Math.min(1, 
+      this.topologyPosition.resonance + deltaResonance));
+    
+    // Irreducibility axis (vertical) - based on uniqueness
+    const deltaIrreducibility = success ? 0.05 : -0.05;
+    this.topologyPosition.irreducibility = Math.max(0, Math.min(1,
+      this.topologyPosition.irreducibility + deltaIrreducibility));
+    
+    // Time dimension
+    this.topologyPosition.time = this.history.length;
+    
+    // Add to history
+    this.topologyHistory.positions.push({...this.topologyPosition});
+    if (this.topologyHistory.positions.length > 100) {
+      this.topologyHistory.positions.shift();
+    }
+    
+    // Calculate emergence score based on movement in topology space
+    if (this.topologyHistory.positions.length >= 2) {
+      const recent = this.topologyHistory.positions.slice(-10);
+      let movement = 0;
+      for (let i = 1; i < recent.length; i++) {
+        movement += Math.abs(recent[i].resonance - recent[i-1].resonance) +
+                   Math.abs(recent[i].irreducibility - recent[i-1].irreducibility);
+      }
+      this.topologyHistory.emergenceScore = movement / 10;
+    }
+  }
+
+  getTopologyPosition(): TopologyPosition {
+    return this.topologyPosition;
+  }
+
+  getTopologyHistory(): TopologyHistory {
+    return this.topologyHistory;
+  }
+
+  // ============ PHASE 4: Enhanced Stuckness Detection Methods ============
+
+  // Detect if bot is stuck in a cycle
+  detectCycling(): boolean {
+    if (this.configHistory.length < 10) return false;
+    
+    const recentConfigs = this.configHistory.slice(-10);
+    const configStrings = recentConfigs.map(c => 
+      `${c.sizeX},${c.sizeY},${c.multiplier},${c.mod}`
+    );
+    
+    // Check for repeating patterns
+    const patternSet = new Set(configStrings);
+    const cycleDetected = patternSet.size < configStrings.length / 2;
+    
+    if (cycleDetected) {
+      this.stucknessState.cyclePatterns = Array.from(patternSet);
+    }
+    
+    return cycleDetected;
+  }
+
+  // Detect if bot is in a local minimum
+  detectLocalMinima(): boolean {
+    if (this.history.length < 5) return false;
+    
+    const recentFeedback = this.history.slice(-5).map(h => h.feedback.valid);
+    // If all recent attempts failed, might be in local minimum
+    const failureCount = recentFeedback.filter(f => !f).length;
+    return failureCount >= 4;
+  }
+
+  // Update stuckness state
+  updateStucknessState(): void {
+    const isCycling = this.detectCycling();
+    const isLocalMinima = this.detectLocalMinima();
+    
+    if (isCycling) {
+      this.stucknessState.isStuck = true;
+      this.stucknessState.type = 'cycling';
+      this.stucknessState.detectedAt = Date.now();
+      this.stucknessState.redirectStrategy = this.selectRedirectStrategy();
+    } else if (isLocalMinima) {
+      this.stucknessState.isStuck = true;
+      this.stucknessState.type = 'local_minima';
+      this.stucknessState.detectedAt = Date.now();
+      this.stucknessState.redirectStrategy = this.selectRedirectStrategy();
+    } else {
+      this.stucknessState.isStuck = false;
+      this.stucknessState.type = 'none';
+      this.stucknessState.redirectStrategy = 'none';
+    }
+  }
+
+  // Select redirect strategy based on stuckness type
+  selectRedirectStrategy(): StucknessState['redirectStrategy'] {
+    const strategies: StucknessState['redirectStrategy'][] = 
+      ['backup', 'strip_complexity', 'invert', 'perturb', 'expose_assumptions'];
+    return strategies[Math.floor(Math.random() * strategies.length)];
+  }
+
+  // Apply redirect strategy when stuck
+  applyRedirectStrategy(): void {
+    const strategy = this.stucknessState.redirectStrategy;
+    
+    switch (strategy) {
+      case 'backup':
+        // Revert to earlier config
+        if (this.configHistory.length > 5) {
+          const backupConfig = this.configHistory[Math.floor(this.configHistory.length / 2)];
+          if (backupConfig) {
+            this.currentConfig = {...backupConfig};
+          }
+        }
+        break;
+      case 'strip_complexity':
+        // Reduce parameters
+        if (this.currentConfig) {
+          this.currentConfig.sizeX = Math.max(5, this.currentConfig.sizeX - 2);
+          this.currentConfig.sizeY = Math.max(5, this.currentConfig.sizeY - 2);
+        }
+        break;
+      case 'invert':
+        // Invert logic
+        if (this.currentConfig) {
+          this.currentConfig.multiplier = this.currentConfig.multiplier === 7 ? 3 : 7;
+        }
+        break;
+      case 'perturb':
+        // Significant perturbation
+        if (this.currentConfig) {
+          this.currentConfig.vx0 = Math.floor(Math.random() * 10) - 5;
+          this.currentConfig.vy0 = Math.floor(Math.random() * 10) - 5;
+        }
+        break;
+      case 'expose_assumptions':
+        // Add new constraint
+        this.constraints.push(`Assumption_${Date.now()}: Random parameter variation`);
+        break;
+    }
+  }
+
+  // Update phase diversity
+  updatePhaseDiversityScore(otherBots: Bot[]): void {
+    const phases = otherBots.map(b => b.getGeometricState().phi);
+    const variance = phases.reduce((sum, p) => sum + Math.pow(p - phases.reduce((a,b) => a+b,0)/phases.length, 2), 0) / phases.length;
+    this.phaseDiversityScore = Math.min(1, Math.sqrt(variance) * 10);
+  }
+
+  getStucknessState(): StucknessState {
+    return this.stucknessState;
+  }
+
+  // ============ PHASE 5: Spectral Analysis Methods ============
+
+  // Add behavior to sequence
+  addToBehaviorSequence(value: number): void {
+    this.behaviorSequence.push(value);
+    if (this.behaviorSequence.length > 1000) {
+      this.behaviorSequence.shift();
+    }
+  }
+
+  // Perform FFT-like analysis (simplified)
+  performSpectralAnalysis(): SpectralData {
+    const sequence = this.behaviorSequence;
+    if (sequence.length < 10) {
+      return this.spectralData;
+    }
+    
+    // Simplified DFT-like analysis
+    const n = Math.min(sequence.length, 64); // Limit to 64 frequency bins
+    const frequencies: number[] = [];
+    const magnitudes: number[] = [];
+    
+    for (let k = 0; k < n; k++) {
+      let real = 0;
+      let imag = 0;
+      for (let t = 0; t < sequence.length; t++) {
+        const angle = (2 * Math.PI * k * t) / sequence.length;
+        real += sequence[t] * Math.cos(angle);
+        imag -= sequence[t] * Math.sin(angle);
+      }
+      const magnitude = Math.sqrt(real * real + imag * imag) / sequence.length;
+      frequencies.push(k / sequence.length);
+      magnitudes.push(magnitude);
+    }
+    
+    // Find dominant frequency
+    let maxMag = 0;
+    let dominantFreq = 0;
+    for (let i = 1; i < magnitudes.length; i++) {
+      if (magnitudes[i] > maxMag) {
+        maxMag = magnitudes[i];
+        dominantFreq = frequencies[i];
+      }
+    }
+    
+    // Find harmonics (frequencies with significant magnitude)
+    const harmonics: number[] = [];
+    const threshold = maxMag * 0.5;
+    for (let i = 1; i < magnitudes.length; i++) {
+      if (magnitudes[i] > threshold) {
+        harmonics.push(frequencies[i]);
+      }
+    }
+    
+    // Calculate periodicity score
+    const periodicityScore = harmonics.length > 0 ? harmonics.length / n : 0;
+    
+    this.spectralData = {
+      frequencies,
+      magnitudes,
+      dominantFrequency: dominantFreq,
+      harmonics,
+      periodicityScore
+    };
+    
+    return this.spectralData;
+  }
+
+  getSpectralData(): SpectralData {
+    return this.spectralData;
+  }
+
+  // Use spectral data for anomaly improvement
+  useSpectralForAnomaly(): number {
+    if (this.spectralData.periodicityScore > 0.5) {
+      return this.spectralData.dominantFrequency * 10;
+    }
+    return 0;
   }
 
   // Generate a new config autonomously
@@ -244,8 +723,81 @@ export class BotFleet {
     }
   }
 
+  // Fleet coordination: coordinate all bots using coprime metrics and all 5 phases
+  private fleetCoordination(): void {
+    const bots = this.bots;
+    
+    // Phase 1: Update Coprime Coordination Layer
+    for (const bot of bots) {
+      bot.updateCoprimeMetrics(bots);
+      bot.updatePhaseDiversity(bots);
+    }
+
+    // Phase 2: Second-Order Regulation - adapt learning strategies
+    for (const bot of bots) {
+      const history = bot.getHistory();
+      if (history.length > 0) {
+        const lastFeedback = history[history.length - 1]?.feedback;
+        if (lastFeedback) {
+          bot.adaptLearningStrategy(lastFeedback.valid);
+          const metaFeedback = bot.generateMetaFeedback();
+          // Use meta-feedback recommendations to evolve constraints
+          if (metaFeedback.recommendations.length > 0) {
+            bot.evolveConstraints(metaFeedback.recommendations);
+          }
+        }
+      }
+    }
+
+    // Phase 3: Geometric Topology Mapping - update topology positions
+    for (const bot of bots) {
+      const history = bot.getHistory();
+      if (history.length > 0) {
+        const lastFeedback = history[history.length - 1]?.feedback;
+        bot.updateTopologyPosition(lastFeedback?.valid ?? false);
+      }
+    }
+
+    // Phase 4: Enhanced Stuckness Detection - check and handle stuckness
+    for (const bot of bots) {
+      bot.updateStucknessState();
+      const stuckness = bot.getStucknessState();
+      if (stuckness.isStuck) {
+        // Apply redirect strategy
+        bot.applyRedirectStrategy();
+      }
+      // Update phase diversity
+      bot.updatePhaseDiversityScore(bots);
+    }
+
+    // Phase 5: Spectral Analysis - analyze behavior patterns
+    for (const bot of bots) {
+      const history = bot.getHistory();
+      if (history.length > 0) {
+        // Add current anomaly score to behavior sequence
+        const lastAnomalies = history[history.length - 1]?.anomalies;
+        if (lastAnomalies) {
+          const score = Object.values(lastAnomalies).reduce((sum: number, v: any) => sum + (typeof v === 'number' ? v : 0), 0);
+          bot.addToBehaviorSequence(score);
+        }
+      }
+      // Perform spectral analysis periodically
+      if (bot.getHistory().length % 10 === 0) {
+        const spectralData = bot.performSpectralAnalysis();
+        // Use spectral data for anomaly improvement
+        const spectralBonus = bot.useSpectralForAnomaly();
+        if (spectralBonus > 0) {
+          this.logicChangeLog.push(`Bot ${bot.getId()} spectral anomaly bonus: ${spectralBonus.toFixed(4)}`);
+        }
+      }
+    }
+  }
+
   // Run one iteration for all bots, write outputs, detect anomalies
   runIteration(): void {
+    // First, run fleet coordination to update all phase-based metrics
+    this.fleetCoordination();
+    
     for (const bot of this.bots) {
       const config = bot.generateConfig();
       const result = bot.runSimulation();
@@ -257,6 +809,17 @@ export class BotFleet {
 
       // Detect anomalies
       const anomalies = this.anomalyDetector.detectAnomaliesFromResult(result, `bot_${bot.getId()}`);
+      
+      // Add spectral anomaly bonus if applicable
+      const spectralData = bot.getSpectralData();
+      if (spectralData.periodicityScore > 0.5) {
+        anomalies.spectral_bonus = spectralData.dominantFrequency * 10;
+      }
+      
+      // Add topology-based anomaly score
+      const topologyHistory = bot.getTopologyHistory();
+      anomalies.topology_score = topologyHistory.emergenceScore;
+
       // Add to history
       bot.getHistory().push({ config, feedback, anomalies });
 
